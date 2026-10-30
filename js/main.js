@@ -218,8 +218,10 @@
     }
     function updateFlag(f) {
       const what = (c) => `#${c.num} ${c.brand} ${c.out ? 'is out' : c.state === 'crash' ? (f.kind === 'spin' ? 'spins' : 'goes off') : 'carries on'}`;
-      f.el.innerHTML = `<small>Yellow flag · ${esc(f.section)}</small><b>${esc(f.cars.map(what).join(' · '))}</b>` +
+      const html = `<small>Yellow flag · ${esc(f.section)}</small><b>${esc(f.cars.map(what).join(' · '))}</b>` +
         (f.clip ? `<button type="button" class="ctrl">▶ Replay</button>` : '');
+      if (html === f.html) return; // #flags is a live region: rewriting it unchanged makes screen readers repeat it
+      f.html = html; f.el.innerHTML = html;
       if (f.clip) f.el.querySelector('button').addEventListener('click', () => playClip(f.clip));
     }
     function flagReplayReady(clip) {
@@ -392,19 +394,39 @@
       const down = Math.floor((leader.dist - c.dist) / track.L);
       return down >= 1 ? `+${plural(down, 'lap')}` : '+' + Math.max(0, c.gap).toFixed(3);
     }
+    // One row per car, built once. A refresh rewrites only what changed and reorders the rows round the
+    // focused one (moving a focused element drops its focus), so keyboard users keep their place.
+    const towerList = $('towerList');
+    const towerRows = cars.map((c) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<button type="button" class="row" data-i="${c.idx}" aria-label="Follow #${c.num} ${c.brand}">
+          <span class="p"></span><span class="sw" style="background:${c.base}"></span>
+          <span class="n">${c.num}</span><span class="b">${c.brand}</span><span class="g"></span><span class="m"></span></button>`;
+      const b = li.firstElementChild;
+      return { li, b, p: b.querySelector('.p'), g: b.querySelector('.g'), m: b.querySelector('.m'), mark: '' };
+    });
+    const setText = (el, s) => { if (el.textContent !== s) el.textContent = s; };
     function renderTower(force) {
       const now = performance.now();
       if (!force && now - towerT < 400) return;
       towerT = now;
       const order = cars.slice().sort((a, b) => a.pos - b.pos);
       const leader = order[0], t = race.time;
-      $('towerList').innerHTML = order.map((c) => {
+      order.forEach((c) => {
+        const r = towerRows[c.idx];
         const cls = ['row', c.idx === st.focus ? 'on' : '', c.out ? 'out' : '', c.state === 'crash' ? 'inc' : '', c.finished ? 'fin' : ''].join(' ');
         const mark = c.finished ? '<i class="chq" aria-label="Finished"></i>' : t - c.gainT < 4 ? '<i class="up" aria-label="Gained a place">▲</i>' : t - c.loseT < 4 ? '<i class="dn" aria-label="Lost a place">▼</i>' : '';
-        return `<li><button type="button" class="${cls}" data-i="${c.idx}" aria-label="Follow #${c.num} ${c.brand}">
-          <span class="p">${c.pos}</span><span class="sw" style="background:${c.base}"></span>
-          <span class="n">${c.num}</span><span class="b">${c.brand}</span><span class="g">${gapText(c, leader)}</span><span class="m">${mark}</span></button></li>`;
-      }).join('');
+        if (r.b.className !== cls) r.b.className = cls;
+        if (r.mark !== mark) { r.mark = mark; r.m.innerHTML = mark; }
+        setText(r.p, String(c.pos));
+        setText(r.g, gapText(c, leader));
+      });
+      const want = order.map((c) => towerRows[c.idx].li);
+      if (want.some((li, i) => towerList.children[i] !== li)) {
+        const keep = towerList.contains(document.activeElement) ? document.activeElement.closest('li') : null;
+        const k = want.indexOf(keep);
+        want.forEach((li, i) => { if (li !== keep) k < 0 || i > k ? towerList.appendChild(li) : towerList.insertBefore(li, keep); });
+      }
       const ph = race.phase;
       $('lapNow').textContent = ph === 'race' ? `Lap ${Math.min(TOTAL, leader.lap)}/${TOTAL}` : 'Chequered flag';
       const scp = race.scPhase;
@@ -515,14 +537,15 @@
         $('replayProg').style.transform = `scaleX(${replay.progress.toFixed(3)})`;
       } else {
         if (!paused) {
-          let sim = real * speed;
-          while (sim > 1e-6) { const h = Math.min(sim, 1 / 60); race.step(h); replay.record(); sim -= h; }
+          // equal sub-steps of about 1/60 s: a tiny leftover step skews the car physics (false take-offs on crests)
+          const sim = real * speed, n = sim > 0 ? Math.max(1, Math.ceil(sim * 60 - 0.1)) : 0, h = sim / n;
+          for (let k = 0; k < n; k++) { race.step(h); replay.record(); }
           race.render(real * speed);
           fxDt = real * speed;
           celebrate(raw);
           if (ceremonyIn > 0 && (ceremonyIn -= raw) <= 0) beginCeremony();
         }
-        focus = cams.update(real, now / 1000);
+        focus = cams.update(real, now / 1000, paused ? 1 : speed);
       }
       const fall = paused ? 0 : real * (replay.active ? rate : 1);
       const seen = replay.active ? replay.clip.car : st.mode === 'spectator' ? cams.specTarget : cars[st.focus];

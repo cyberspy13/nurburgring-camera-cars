@@ -137,7 +137,7 @@
     const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, color: col('#fff1d6'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, fog: false });
     (race.audible || race.cars).forEach((c) => {
       const m = new THREE.Mesh(poolGeo, poolMat);
-      m.position.y = 0.08; m.renderOrder = 3; m.visible = false;
+      m.position.set(0, 0.08, (c.rig.nose || 2.2) - 2.2); m.renderOrder = 3; m.visible = false; // from the bus's longer nose too
       c.rig.root.add(m);
       c.rig.pool = m;
     });
@@ -207,8 +207,7 @@
       // the race itself
       race.weather.grip = cur.grip; race.weather.risk = cur.risk;
       race.tailBase = 0.5 + 1.3 * nightK;
-      const heads = NR.carMaterials().head;
-      heads.emissiveIntensity = 1.2 + 1.2 * cur.wet + 3 * nightK;
+      for (const m of NR.carMaterials().lamps) m.emissiveIntensity = 1.2 + 1.2 * cur.wet + 3 * nightK;
     }
 
     const camPos = new THREE.Vector3();
@@ -252,7 +251,10 @@
       poolMat.opacity = 0.5 * nightK;
       for (const c of race.audible || race.cars) if (c.rig.pool) c.rig.pool.visible = lit && !c.hidden && !c.out;
       const fc = view.focusCar;
-      if (fc !== lampCar) { if (fc) { fc.rig.root.add(lamp); fc.rig.root.add(lampAim); } lampCar = fc; }
+      if (fc !== lampCar) {
+        if (fc) { fc.rig.root.add(lamp); fc.rig.root.add(lampAim); lamp.position.z = (fc.rig.nose || 2.2) - 0.1; }
+        lampCar = fc;
+      }
       lamp.intensity = fc && !fc.hidden && !fc.out ? 1.6 * nightK : 0;
       flood.forEach((l) => { l.intensity = 0.9 * nightK; });
       glows.forEach((g) => { g.visible = lit; g.material.opacity = nightK; });

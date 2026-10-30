@@ -1,12 +1,13 @@
 # Camera Cars on a Nürburgring Track
 
-A live 3D race of twelve GT3 cars round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, the driver's seat or the trackside grandstands.
+A live 3D race of twelve GT3 cars, plus one red double-decker bus, round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, the driver's seat or the trackside grandstands.
 
 **Play it:** https://cyberspy13.github.io/nurburgring-camera-cars/
 
 ## What's in it
 
-- **12 GT3 cars**: McLaren, BMW, Mercedes-AMG, Audi, Aston Martin, Porsche, Ferrari and Lamborghini, each with its own look and engine sound.
+- **12 GT3 cars**: McLaren, BMW, Mercedes-AMG, Audi, Aston Martin, Porsche, Ferrari and Lamborghini, each with its own engine sound and a body shaped after the real car: its silhouette, grille and lights, flared wheel arches, swan-neck rear wing, and centre-lock wheels with brake calipers.
+- **A guest bus**: #13, a red double-decker flying a PR 4ML flag (the same registration is on its plates). It has a turbo-diesel straight-six, races a little off the GT3s' pace, and can be followed from every camera, including the driver's seat.
 - **A 17-lap race**: shuffled grid, slipstreaming and overtaking, tyre wear, lap times and a live timing tower.
 - **Crashes**: spins, trips across the grass and barrier hits with sparks and flying bodywork. Cars may rejoin or retire. Yellow flags go out, and a **safety car** comes out for serious incidents.
 - **Replays**: broadcast-style crash replays with slow motion.
@@ -41,7 +42,8 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/world.js` | Textures, sky, terrain, road, kerbs and barriers |
 | `js/track.js` | The circuit layout, speed profile and racing line |
 | `js/scenery.js` | Grandstand, spectators, forests, village and castle |
-| `js/cars.js` | Car models, race simulation, crashes, safety car and celebration |
+| `js/models.js` | Car, bus and cockpit models: bodies, liveries, lights, wings and wheels |
+| `js/cars.js` | The field of cars, race simulation, crashes, safety car and celebration |
 | `js/fx.js` | Smoke, spray, sparks, debris, fireworks and confetti |
 | `js/replay.js` | Recording and crash replays |
 | `js/cameras.js` | Helicopter, blimp, cabin, spectator and podium cameras |

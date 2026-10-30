@@ -52,6 +52,7 @@
       if (c) {
         c.rig.glass.visible = false; c.rig.roof.visible = false; setClip(c, true);
         c.rig.body.add(cockpit.group);
+        if (c.rig.cockpitAt) cockpit.group.position.copy(c.rig.cockpitAt); else cockpit.group.position.set(0, 0, 0); // the bus sits its driver higher up
       } else if (cockpit.group.parent) cockpit.group.parent.remove(cockpit.group);
     }
 
@@ -63,8 +64,10 @@
       snap = true;
     }
 
-    function update(dt, t) {
+    // dt is wall-clock time; rate is the race speed, so the chase smoothing keeps pace with the cars at 2x-16x
+    function update(dt, t, rate) {
       const c = cars[state.focus];
+      const chase = dt * Math.max(1, rate || 1);
       const shake = state.calm ? 0 : 1;
       // crowds get louder as cars approach their spot
       scenery.spots.forEach((sp) => {
@@ -79,9 +82,9 @@
         v.y = c.world.y + high;
         v.y = Math.max(v.y, NR.groundY(v.x, v.z) + 6);
         if (snap || heliPos.distanceTo(v) > 140) { heliPos.copy(v); heliLook.copy(c.world); }
-        heliPos.lerp(v, 1 - Math.exp(-dt * 1.7));
+        heliPos.lerp(v, 1 - Math.exp(-chase * 1.7));
         v2.copy(c.world).addScaledVector(c.fr.fwd, Math.min(9, c.v * 0.2));
-        heliLook.lerp(v2, 1 - Math.exp(-dt * 6));
+        heliLook.lerp(v2, 1 - Math.exp(-chase * 6));
         camera.position.copy(heliPos);
         camera.position.y += Math.sin(t * 0.9) * 0.35 * shake;
         camera.position.x += Math.sin(t * 0.63) * 0.25 * shake;
@@ -112,7 +115,7 @@
         focusPos.copy(C.center);
       } else if (state.mode === 'cabin') {
         c.rig.root.updateMatrixWorld(true);
-        v.set(0.36, 1.06, -0.3).applyMatrix4(c.rig.body.matrixWorld);
+        (c.rig.eye ? v.copy(c.rig.eye) : v.set(0.36, 1.06, -0.3)).applyMatrix4(c.rig.body.matrixWorld);
         const vib = shake * Math.min(1, c.v / 70);
         v.x += (Math.random() - 0.5) * 0.004 * vib; v.y += (Math.random() - 0.5) * 0.006 * vib;
         camera.position.copy(v);
@@ -130,7 +133,7 @@
         let best = null, bd = 230;
         for (const o of cars) { if (o.hidden) continue; const d = o.world.distanceTo(sp.cam); if (d < bd) { bd = d; best = o; } }
         if (best) {
-          v.copy(best.world).addScaledVector(best.fwd, best.v * 0.06); v.y += 0.7;
+          v.copy(best.world).addScaledVector(best.fwd, best.v * 0.06); v.y += best.rig.aimY || 0.7;
           specTarget = best;
         } else {
           track.frame(sp.s - 90, 0, idleFrame);
@@ -138,14 +141,14 @@
           specTarget = null;
         }
         if (snap) specLook.copy(v);
-        specLook.lerp(v, 1 - Math.exp(-dt * (best ? 9 : 2)));
+        specLook.lerp(v, 1 - Math.exp(-chase * (best ? 9 : 2)));
         camera.position.copy(sp.cam);
         camera.position.y += Math.sin(t * 1.3) * 0.02 * shake;
         camera.lookAt(specLook.x + Math.sin(t * 2.1) * 0.05 * shake, specLook.y + Math.sin(t * 1.7) * 0.04 * shake, specLook.z);
         const d = camera.position.distanceTo(specLook);
-        const want = best ? THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(6.5 / d)), 9, 62) : 50;
+        const want = best ? THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan((best.rig.frame || 6.5) / d)), 9, 62) : 50;
         if (snap) specFov = want;
-        specFov += (want - specFov) * (1 - Math.exp(-dt * 2.5));
+        specFov += (want - specFov) * (1 - Math.exp(-chase * 2.5));
         camera.fov = specFov;
         focusPos.copy(sp.center);
       }

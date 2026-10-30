@@ -54,6 +54,12 @@
       layout: 'v10', pipe: [1.11, 1.13], tail: 0.55, muff: 6200, chamber: 150, pulse: 25, intake: 640, whine: 33,
       cyl: 10, bank: 0.45, uneven: 0.07, tilt: 0.7, bright: 1.05, res: [[200, 5, 1.0], [1500, 6, 1.5]],
     },
+    // the bus: a big lazy diesel, heavily silenced, with turbo whistle and no afterfire
+    'Bus': {
+      label: '9.0 turbo-diesel straight-six', cal: 2.05, red: 2600, turbo: 0.8, pops: 0, grit: 2.6, vol: 1.0,
+      layout: 'i6', pipe: [1.9, 1.95], tail: 1.0, muff: 1500, chamber: 70, pulse: 50, intake: 240, whine: 26,
+      cyl: 6, bank: 0.3, uneven: 0.04, tilt: 1.25, bright: 0.6, res: [[85, 6, 1.0], [380, 4, 1.2]],
+    },
   };
   // The exhaust bank each firing feeds, in firing order. Every layout here fires evenly overall;
   // the cross-plane V8 alternates banks unevenly (1-5-4-8-6-3-7-2), which is where its burble comes from.
@@ -94,10 +100,22 @@
     let ctx = null, bus, master, revIn, BUF, CURVE, PULSE;
     let engine = 'loading', via = null; // which synth runs the engines ('worklet' or 'native'), and how the worklet loaded
     let enabled = true, celebrating = false, crowd = null, bed = null, sky = 'clear', wx = null;
+    let held = false, heard = false, holdT = 0; // paused by the race; the context has run at least once
     const waves = new Map(), voices = new Map(), aud = new Map(), made = new Map();
     const api = { onChange: null };
     const changed = () => api.onChange && api.onChange();
     const live = () => !!ctx && ctx.state === 'running';
+    const wanted = () => enabled && !held && !document.hidden;
+    // Sound off, paused or in a background tab: fade out, then suspend the context so the engine
+    // simulations stop using the CPU. Resuming needs no click once the context has run before.
+    function hold() {
+      if (!ctx) return;
+      clearTimeout(holdT);
+      if (wanted()) { if (ctx.state !== 'running') ctx.resume(); return; }
+      if (ctx.state !== 'running') return;
+      master.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+      holdT = setTimeout(() => { if (!wanted()) ctx.suspend(); }, 400); // after the fade, or it clicks
+    }
     const noise = () => Math.random() * 2 - 1;
 
     // ---------- generated material ----------
@@ -339,7 +357,8 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return false;
       ctx = new AC();
-      ctx.onstatechange = changed;
+      heard = ctx.state === 'running';
+      ctx.onstatechange = () => { if (ctx.state === 'running') heard = true; changed(); };
       BUF = makeBuffers();
       CURVE = new Float32Array(1025);
       for (let i = 0; i < 1025; i++) CURVE[i] = Math.tanh((i / 512 - 1) * 3);
@@ -373,9 +392,7 @@
         () => material('impact0', () => makeImpact(0)), () => material('firework', makeFirework)];
       const next = () => { const f = warm.shift(); if (f) { f(); setTimeout(next, 120); } };
       setTimeout(next, 400);
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) ctx.suspend(); else if (enabled) ctx.resume();
-      });
+      document.addEventListener('visibilitychange', hold);
       return true;
     }
 
@@ -582,6 +599,7 @@
         else { rel.subVectors(camPos, camPrev).divideScalar(dt); camVel.lerp(rel, Math.min(1, dt * 8)); }
       }
       camPrev.copy(camPos); havePrev = true;
+      if (!!o.paused !== held) { held = !!o.paused; hold(); changed(); }
       if (!live()) return;
       const t = ctx.currentTime;
       master.gain.setTargetAtTime(enabled && !o.paused ? 0.9 : 0, t, 0.08);
@@ -724,17 +742,17 @@
     function unlock() {
       if (!enabled) return;
       if (!ctx && !init()) return;
-      if (ctx.state !== 'running') ctx.resume();
+      hold();
     }
     // Never creates the audio context itself, so it is safe to call outside a click or key press.
     function setEnabled(on) {
       enabled = on;
       if (on && ctx) unlock();
-      else if (ctx) master.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
+      else hold();
       changed();
     }
-    // 'off', 'waiting' (on, but the browser has not allowed sound yet) or 'on'
-    function status() { return !enabled ? 'off' : ctx && ctx.state === 'running' ? 'on' : 'waiting'; }
+    // 'off', 'waiting' (on, but the browser has not allowed sound yet) or 'on' (held while paused counts as on)
+    function status() { return !enabled ? 'off' : live() || (heard && !wanted()) ? 'on' : 'waiting'; }
 
     Object.assign(api, {
       update, unlock, setEnabled, status, impact, firework, celebrate,

@@ -1,4 +1,4 @@
-// cars.js — GT3 car models, liveries, cockpit and the race simulation.
+// cars.js — the field of cars and the race simulation (the 3D models are built in models.js).
 (function () {
   'use strict';
   const NR = (window.NR = window.NR || {});
@@ -17,272 +17,9 @@
     { brand: 'Mercedes-AMG', model: 'AMG GT3', num: 48, type: 'front', base: '#16181b', accent: '#e10600', accent2: '#5b6168', style: 'line' },
     { brand: 'McLaren', model: '720S GT3', num: 58, type: 'mid', base: '#3b4048', accent: '#ff7a00', accent2: '#ff7a00', style: 'stripe' },
     { brand: 'Aston Martin', model: 'Vantage GT3', num: 27, type: 'front', base: '#c9d1d6', accent: '#00513f', accent2: '#c4d600', style: 'front' },
+    // the guest entry: a red double-decker flying a PR 4ML flag (also on its plates), a little off the GT3s' pace
+    { brand: 'Bus', model: 'Double-decker', num: 13, type: 'bus', base: '#d7261e', accent: '#f2ead3', reg: 'PR 4ML', pace: 0.95 },
   ];
-
-  // Side profiles: [length position (+front), height] along the top line, front to back.
-  const PROFILES = {
-    mid: { body: [[2.22, 0.42], [2.02, 0.6], [1.3, 0.72], [0.62, 0.8], [-0.4, 0.86], [-1.4, 0.88], [-2.08, 0.9], [-2.24, 0.78]], glass: [[0.74, 0.78], [0.02, 1.1], [-0.72, 1.11], [-1.55, 0.88]] },
-    front: { body: [[2.22, 0.44], [2.02, 0.63], [1.0, 0.8], [0.15, 0.85], [-1.5, 0.9], [-2.1, 0.92], [-2.24, 0.8]], glass: [[0.12, 0.83], [-0.62, 1.16], [-1.28, 1.15], [-2.0, 0.9]] },
-    coupe: { body: [[2.22, 0.46], [2.02, 0.66], [1.0, 0.82], [0.3, 0.86], [-1.5, 0.92], [-2.12, 0.94], [-2.24, 0.82]], glass: [[0.28, 0.85], [-0.36, 1.24], [-1.32, 1.24], [-1.86, 0.93]] },
-    rear: { body: [[2.22, 0.4], [2.02, 0.6], [1.0, 0.76], [0.55, 0.82], [-0.8, 0.88], [-2.12, 0.86], [-2.26, 0.72]], glass: [[0.55, 0.8], [-0.12, 1.17], [-0.72, 1.17], [-2.02, 0.86]] },
-  };
-  const WHEEL_F = 1.4, WHEEL_R = -1.38, WHEEL_X = 0.86, WHEEL_RAD = 0.35;
-
-  const UVGEN = {
-    generateTopUV(g, v, a, b, c) {
-      const f = (i) => new THREE.Vector2((v[i * 3] + 2.45) / 4.9, (v[i * 3 + 1] / 1.4) * 0.5);
-      return [f(a), f(b), f(c)];
-    },
-    generateSideWallUV(g, v, a, b, c, d) {
-      const f = (i) => new THREE.Vector2((v[i * 3] + 2.45) / 4.9, 0.5 + 0.5 * Math.min(1, Math.max(0, (v[i * 3 + 2] + 0.1) / 2)));
-      return [f(a), f(b), f(c), f(d)];
-    },
-  };
-  const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-
-  function profileGeo(top, bottomY, width, bevel, shapeFn) {
-    const shape = new THREE.Shape();
-    const last = top[top.length - 1];
-    shape.moveTo(last[0] - 0.02, bottomY);
-    shape.lineTo(top[0][0] - 0.06, bottomY);
-    shape.splineThru(top.map((p) => new THREE.Vector2(p[0], p[1])));
-    shape.closePath();
-    const depth = width - 2 * bevel;
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel * 0.8, bevelSegments: 3,
-      curveSegments: 28, steps: 1, UVGenerator: UVGEN,
-    });
-    geo.translate(0, 0, -depth / 2);
-    geo.rotateY(-Math.PI / 2);
-    const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) {
-      const z = p.getZ(i), y = p.getY(i);
-      p.setX(i, p.getX(i) * shapeFn(z, y));
-    }
-    geo.computeVertexNormals();
-    return geo;
-  }
-
-  // Plan-view sculpting: narrow nose, flared wheel arches, inset doors, tumblehome
-  const arch = (z, c) => Math.exp(-Math.pow((z - c) / 0.55, 2));
-  function bodyShape(z, y) {
-    const t = z / 2.3;
-    let k = 0.952 + 0.05 * (arch(z, WHEEL_F) + arch(z, WHEEL_R)) * (1 - sm(0.5, 0.86, y));
-    const a = Math.min(1, Math.abs(t));
-    k *= t > 0 ? (1 - 0.1 * a * a) * Math.sqrt(Math.max(0.06, 1 - Math.pow(a, 8)))
-               : (1 - 0.05 * a * a) * Math.sqrt(Math.max(0.1, 1 - Math.pow(a, 12)));
-    return k * (1 - 0.1 * sm(0.62, 0.95, y));
-  }
-
-  const geoCache = {};
-  function typeGeos(type) {
-    if (geoCache[type]) return geoCache[type];
-    const pr = PROFILES[type];
-    const g = {
-      body: profileGeo(pr.body, 0.16, 2.0, 0.1, bodyShape),
-      glass: profileGeo(pr.glass.concat([[pr.glass[pr.glass.length - 1][0] + 0.05, 0.8]]), 0.78, 1.5, 0.07,
-        (z, y) => (1 - 0.08 * Math.pow(Math.min(1, Math.abs(z) / 2), 3)) * (1 - 0.3 * sm(0.8, 1.2, y))),
-    };
-    const a = pr.glass[1], b = pr.glass[2];
-    g.roof = { z: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 + 0.035, len: Math.hypot(a[0] - b[0], a[1] - b[1]) + 0.1, pitch: -Math.atan2(a[1] - b[1], a[0] - b[0]) };
-    g.screenBase = pr.glass[0];
-    return (geoCache[type] = g);
-  }
-
-  function liveryTex(e) {
-    const { canvasTex } = NR.world;
-    return canvasTex(1024, 512, (g, w, h) => {
-      const X = (x) => ((x + 2.45) / 4.9) * w;           // length (m) -> px
-      const SY = (y) => h - (y / 1.4) * (h / 2);          // side height (m) -> px
-      const TY = (f) => h / 2 - f * (h / 2);              // top width fraction -> px
-      g.fillStyle = e.base; g.fillRect(0, 0, w, h);
-      const A = e.accent, B = e.accent2 || e.accent;
-      if (e.style === 'lower') {
-        g.fillStyle = A; g.beginPath(); g.moveTo(X(2.4), SY(0)); g.lineTo(X(2.4), SY(0.42)); g.lineTo(X(-0.4), SY(0.58)); g.lineTo(X(-2.4), SY(0.6)); g.lineTo(X(-2.4), SY(0)); g.fill();
-        g.fillStyle = B; g.fillRect(0, SY(0.62), w, 6);
-        g.fillStyle = A; g.fillRect(0, TY(0.97), w, h * 0.015); g.fillRect(0, TY(0.06), w, h * 0.015);
-      } else if (e.style === 'mstripes') {
-        const cols = ['#3fa9f5', '#1c3f94', '#e4002b'];
-        cols.forEach((c, i) => {
-          g.fillStyle = c; g.beginPath();
-          const x0 = 0.9 - i * 0.28;
-          g.moveTo(X(x0), SY(0)); g.lineTo(X(x0 + 0.2), SY(0)); g.lineTo(X(x0 - 0.6), SY(1.4)); g.lineTo(X(x0 - 0.8), SY(1.4)); g.fill();
-          g.fillRect(0, TY(0.4 + i * 0.07), w, h * 0.03);
-        });
-        g.fillStyle = A; g.fillRect(X(-2.4), SY(0.35), X(0.6) - X(-2.4), SY(0.18) - SY(0.35));
-      } else if (e.style === 'line') {
-        g.fillStyle = B; g.fillRect(0, SY(0.36), w, SY(0) - SY(0.36));
-        g.fillStyle = A; g.fillRect(0, SY(0.6), w, SY(0.52) - SY(0.6));
-        g.fillRect(0, TY(0.47), w, h * 0.03);
-      } else if (e.style === 'front') {
-        g.fillStyle = A; g.beginPath(); g.moveTo(X(2.4), SY(0)); g.lineTo(X(0.7), SY(0)); g.lineTo(X(1.2), SY(1.4)); g.lineTo(X(2.4), SY(1.4)); g.fill();
-        g.fillRect(X(1.0), 0, X(2.45) - X(1.0), h / 2);
-        g.fillStyle = B; g.fillRect(0, SY(0.3), w, SY(0) - SY(0.3));
-      } else if (e.style === 'sc') {
-        // high-visibility Battenburg chequers along the flanks, a stripe over the roof
-        const sq = (0.32 / 4.9) * w;
-        for (let x = 0, k = 0; x < w; x += sq, k++) {
-          g.fillStyle = k % 2 ? A : B; g.fillRect(x, SY(0.62), sq + 1, SY(0.46) - SY(0.62));
-          g.fillStyle = k % 2 ? B : A; g.fillRect(x, SY(0.46), sq + 1, SY(0.3) - SY(0.46));
-        }
-        g.fillStyle = B; g.fillRect(0, TY(0.56), w, TY(0.44) - TY(0.56));
-      } else {
-        g.fillStyle = A; g.fillRect(0, TY(0.6), w, h * 0.06); g.fillRect(0, TY(0.46), w, h * 0.06);
-        g.fillRect(0, SY(0.5), w, SY(0.42) - SY(0.5));
-        g.fillStyle = B; g.fillRect(0, SY(0.25), w, SY(0) - SY(0.25));
-      }
-      g.fillStyle = '#121416'; g.fillRect(0, SY(0.2), w, SY(0) - SY(0.2)); // sills
-      [WHEEL_F, WHEEL_R].forEach((x) => { g.beginPath(); g.arc(X(x), SY(0.36), (0.44 / 4.9) * w, 0, Math.PI * 2); g.fill(); });
-    });
-  }
-
-  function numberTex(e) {
-    const { canvasTex } = NR.world;
-    return canvasTex(256, 200, (g, w, h) => {
-      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.46, h * 0.44, 0, 0, Math.PI * 2); g.fill();
-      g.fillStyle = '#111111'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = `700 ${String(e.num).length > 2 ? 104 : 136}px "Saira Condensed", "Arial Narrow", sans-serif`;
-      g.fillText(String(e.num), w / 2, h / 2 + 8);
-    });
-  }
-
-  function scNameTex() {
-    return NR.world.canvasTex(512, 76, (g, w, h) => {
-      g.fillStyle = '#1a3a7a'; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.font = '800 64px "Saira Condensed", "Arial Narrow", sans-serif';
-      g.fillText('SAFETY CAR', w / 2, h / 2 + 3);
-    });
-  }
-
-  let MAT = null;
-  function sharedMats() {
-    if (MAT) return MAT;
-    const { col, TEX } = NR.world;
-    MAT = {
-      glass: new THREE.MeshPhysicalMaterial({ color: col('#0b1015'), metalness: 0.2, roughness: 0.05, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.4 }),
-      carbon: new THREE.MeshStandardMaterial({ color: col('#15171a'), roughness: 0.42, metalness: 0.35 }),
-      tire: new THREE.MeshStandardMaterial({ color: col('#161616'), roughness: 0.93 }),
-      rim: new THREE.MeshStandardMaterial({ color: col('#b9bec4'), roughness: 0.28, metalness: 0.9 }),
-      rimDark: new THREE.MeshStandardMaterial({ color: col('#2a2d31'), roughness: 0.35, metalness: 0.8 }),
-      head: new THREE.MeshStandardMaterial({ color: col('#ffffff'), emissive: col('#fff6dd'), emissiveIntensity: 1.2, roughness: 0.1 }),
-      blob: new THREE.MeshBasicMaterial({ map: TEX.blob, transparent: true, depthWrite: false, color: 0xffffff }),
-      dash: new THREE.MeshStandardMaterial({ color: col('#1b1d20'), roughness: 0.85 }),
-      cage: new THREE.MeshStandardMaterial({ color: col('#2d3136'), roughness: 0.5, metalness: 0.5 }),
-      screen: new THREE.MeshBasicMaterial({ color: col('#0b2a3a') }),
-    };
-    return MAT;
-  }
-
-  const tube = (a, b, r, mat) => {
-    const d = new THREE.Vector3().subVectors(b, a);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 8), mat);
-    m.position.copy(a).addScaledVector(d, 0.5);
-    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-    return m;
-  };
-
-  function buildModel(e) {
-    const { col } = NR.world;
-    const M = sharedMats();
-    const G = typeGeos(e.type);
-    const root = new THREE.Group();   // placed on the road
-    const body = new THREE.Group();   // rolls / pitches on suspension
-    root.add(body);
-
-    const paint = new THREE.MeshPhysicalMaterial({ map: liveryTex(e), metalness: 0.4, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.05 });
-    const shell = new THREE.Mesh(G.body, paint); body.add(shell);
-    const glass = new THREE.Mesh(G.glass, M.glass); body.add(glass);
-    const roofMat = new THREE.MeshPhysicalMaterial({ color: col(e.base), metalness: 0.4, roughness: 0.3, clearcoat: 1 });
-    const roof = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.05, G.roof.len), roofMat);
-    roof.position.set(0, G.roof.y, G.roof.z); roof.rotation.x = G.roof.pitch; body.add(roof);
-    // race numbers on the roof and doors; the safety car carries its name instead
-    const numMat = new THREE.MeshStandardMaterial({ map: e.sc ? scNameTex() : numberTex(e), transparent: true, roughness: 0.4 });
-    if (!e.sc) {
-      const roofNum = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.48), numMat);
-      roofNum.rotation.x = -Math.PI / 2; roofNum.position.set(0, 0.03, 0); roof.add(roofNum);
-    }
-    [-1, 1].forEach((sd) => {
-      const n = new THREE.Mesh(e.sc ? new THREE.PlaneGeometry(1.5, 0.22) : new THREE.PlaneGeometry(0.66, 0.52), numMat);
-      n.position.set(sd * 0.962, e.sc ? 0.73 : 0.5, -0.15); n.rotation.y = sd * Math.PI / 2; body.add(n);
-      const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.11, 0.12), roofMat);
-      mirror.position.set(sd * 0.98, G.screenBase[1] + 0.12, G.screenBase[0] - 0.2); body.add(mirror);
-      const hl = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.08, 0.2), M.head);
-      hl.position.set(sd * 0.66, 0.57, 2.02); hl.rotation.x = 0.35; body.add(hl);
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.36, 0.2), M.carbon);
-      post.position.set(sd * 0.45, 1.04, -1.95); body.add(post);
-      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.26, 0.5), M.carbon);
-      plate.position.set(sd * 0.92, 1.19, -2.0); body.add(plate);
-    });
-    const tail = new THREE.MeshStandardMaterial({ color: col('#5a0000'), emissive: col('#ff1a1a'), emissiveIntensity: 0.5, roughness: 0.3 });
-    const tl = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.07, 0.06), tail);
-    tl.position.set(0, 0.74, -2.28); body.add(tl);
-    const wing = new THREE.Mesh(new THREE.BoxGeometry(1.86, 0.035, 0.38), M.carbon);
-    wing.position.set(0, 1.22, -2.0); wing.rotation.x = -0.12; body.add(wing);
-    const splitter = new THREE.Mesh(new THREE.BoxGeometry(1.92, 0.04, 0.4), M.carbon);
-    splitter.position.set(0, 0.11, 2.12); body.add(splitter);
-    const diff = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.2, 0.3), M.carbon);
-    diff.position.set(0, 0.22, -2.2); body.add(diff);
-    body.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-
-    const wheels = [];
-    const rimMat = e.style === 'mstripes' || e.base === '#16181b' ? M.rimDark : M.rim;
-    [[WHEEL_F, 1], [WHEEL_F, -1], [WHEEL_R, 1], [WHEEL_R, -1]].forEach(([z, sd], i) => {
-      const pivot = new THREE.Group();
-      pivot.position.set(sd * WHEEL_X, WHEEL_RAD, z);
-      const spin = new THREE.Group(); pivot.add(spin);
-      const tire = new THREE.Mesh(new THREE.CylinderGeometry(WHEEL_RAD, WHEEL_RAD, 0.3, 24), M.tire);
-      tire.rotation.z = Math.PI / 2; spin.add(tire);
-      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.31, 18), rimMat);
-      rim.rotation.z = Math.PI / 2; spin.add(rim);
-      for (let k = 0; k < 3; k++) {
-        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.46, 0.06), M.rimDark);
-        spoke.position.x = sd * 0.16; spoke.rotation.x = (k / 3) * Math.PI; spin.add(spoke);
-      }
-      pivot.traverse((o) => { if (o.isMesh) o.castShadow = true; });
-      root.add(pivot);
-      wheels.push({ pivot, spin, front: i < 2 });
-    });
-
-    const blob = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 5.4), M.blob);
-    blob.rotation.x = -Math.PI / 2; blob.position.y = 0.04; root.add(blob);
-
-    return { root, body, shell, glass, roof, wheels, tail, blob, wing, splitter, screenZ: G.screenBase[0] };
-  }
-
-  function buildCockpit() {
-    const M = sharedMats();
-    const g = new THREE.Group();
-    const V = (x, y, z) => new THREE.Vector3(x, y, z);
-    const box = (w, h, d, x, y, z, mat, rx) => {
-      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-      m.position.set(x, y, z); if (rx) m.rotation.x = rx; g.add(m); return m;
-    };
-    box(1.6, 0.04, 1.35, 0, 0.8, -0.3, M.dash);              // cockpit floor / seat area
-    [-1, 1].forEach((sd) => box(0.08, 0.12, 1.55, sd * 0.78, 0.9, -0.12, M.dash)); // door cards
-    box(1.6, 0.1, 0.4, 0, 0.82, 0.6, M.dash);                // dashboard (top at 0.87)
-    box(0.3, 0.06, 0.12, 0.36, 0.89, 0.44, M.dash, -0.25);   // instrument binnacle
-    const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.05), M.screen);
-    scr.position.set(0.36, 0.895, 0.375); scr.rotation.set(0.25, Math.PI, 0); g.add(scr);
-    const wheel = new THREE.Group();
-    wheel.position.set(0.36, 0.84, 0.13); wheel.rotation.x = -0.32;
-    const rimW = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.018, 8, 28, Math.PI * 1.55), M.dash);
-    rimW.rotation.z = -Math.PI * 0.275; wheel.add(rimW);
-    const flat = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.028, 0.028), M.dash);
-    flat.position.y = -0.09; wheel.add(flat);
-    const hub = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.1, 0.04), M.cage); wheel.add(hub);
-    const disp = new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.045), M.screen);
-    disp.position.set(0, 0.012, -0.025); disp.rotation.y = Math.PI; wheel.add(disp);
-    g.add(wheel);
-    // A-pillars, windscreen header, roof liner, cage tubes, mirror
-    g.add(tube(V(0.72, 0.88, 0.76), V(0.58, 1.16, -0.02), 0.024, M.cage));
-    g.add(tube(V(-0.72, 0.88, 0.76), V(-0.58, 1.16, -0.02), 0.024, M.cage));
-    g.add(tube(V(-0.58, 1.16, -0.02), V(0.58, 1.16, -0.02), 0.014, M.cage));
-    g.add(tube(V(0.74, 0.97, 0.55), V(0.76, 0.99, -0.9), 0.026, M.cage));
-    g.add(tube(V(0.6, 1.12, -0.95), V(-0.6, 1.12, -0.95), 0.03, M.cage));
-    box(1.2, 0.025, 1.0, 0, 1.19, -0.52, M.dash);            // roof liner
-    box(0.26, 0.06, 0.025, 0, 1.09, 0.04, M.cage);            // rear-view mirror
-    return { group: g, wheel };
-  }
 
   // ---------------- race simulation ----------------
   const TOTAL_LAPS = 17;
@@ -303,10 +40,11 @@
     const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     const secOfS = (s) => track.secOf[Math.floor(wrapS(s) / track.ds) % track.NS];
     const cars = ENTRIES.map((e, i) => {
-      const rig = buildModel(e);
+      const rig = NR.buildCarModel(e);
       scene.add(rig.root);
       return Object.assign({}, e, {
         idx: i, rig, color: e.base, fr: track.newFrame(),
+        len: rig.len || 4.4, wid: rig.wid || 1.95, // contact length and width (a pair touches at the average)
         world: new THREE.Vector3(), fwd: new THREE.Vector3(), up: new THREE.Vector3(),
         quat: new THREE.Quaternion(), vel: new THREE.Vector3(),
       });
@@ -329,12 +67,12 @@
     const puff = (type, p) => { if (fx) fx.emit(type, p, time); };
 
     function resetCar(c, i) {
-      const row = Math.floor(i / 2);
+      const row = Math.floor(i / 2), pace = c.pace || 1;
       Object.assign(c, {
         dist: -10 - row * 13 - (i % 2) * 5, lat: i % 2 ? 2.6 : -2.6, latV: 0, latLim: 0, passSide: 0,
         v: 44, vy: 0, y: 0, air: false, airTime: 0, roadY: 0, squash: 0,
         // car and driver: straight-line speed, cornering grip, braking bravery, tyre wear per lap, appetite for risk
-        topF: 0.972 + rand() * 0.05, gripF: 0.95 + rand() * 0.07, brakeF: 0.94 + rand() * 0.1,
+        topF: (0.972 + rand() * 0.05) * pace, gripF: (0.95 + rand() * 0.07) * pace, brakeF: (0.94 + rand() * 0.1) * pace,
         wear: 0.001 + rand() * 0.002, risk: 0.6 + rand() * 0.8,
         ph: rand() * 6.28, bias: (rand() - 0.5) * 1.6, draft: 0, attack: false,
         steer: 0, accel: 0, latAcc: 0, gear: 3, rpm: 0.5, brake: false, throttle: 0.8, slip: 0, offroad: false,
@@ -408,19 +146,22 @@
         if (d > 0 && d < gap) { gap = d; ahead = o; }
       }
       if (!sc.hidden) { const d = wrapD(sc.s - s); if (d > 0 && d < gap) { gap = d; ahead = sc; } }
+      // the distances below are tuned for two cars: a longer or wider vehicle (the bus) leaves less room
+      if (ahead) gap -= (ahead.len + c.len) / 2 - 4.4;
+      const wx = ahead ? (ahead.wid + c.wid) / 2 - 1.95 : 0;
       let draftT = 0;
       c.attack = false;
-      if (ahead && gap > 4 && gap < 45 && Math.abs(ahead.lat - c.lat) < 1.8 && c.v > 40) draftT = 1 - gap / 45; // slipstream
+      if (ahead && gap > 4 && gap < 45 && Math.abs(ahead.lat - c.lat) < 1.8 + wx && c.v > 40) draftT = 1 - gap / 45; // slipstream
       if (ahead && gap < 34) {
-        const overlap = Math.abs(ahead.lat - c.lat) < 2.25;
+        const overlap = Math.abs(ahead.lat - c.lat) < 2.25 + wx;
         if (overlap || gap < 8) {
           const lim = W - 1.25;
-          const left = Math.min(lim, ahead.lat + 2.9), right = Math.max(-lim, ahead.lat - 2.9);
+          const left = Math.min(lim, ahead.lat + 2.9 + wx), right = Math.max(-lim, ahead.lat - 2.9 - wx);
           const roomL = left - ahead.lat, roomR = ahead.lat - right;
           // no passing under yellow flags (except cars crawling back) or on the cool-down lap
           const allowed = !c.finished && !ahead.finished && ahead !== sc && (!yellow || ahead.v < 20) && (!scOn || ahead.v < 15);
           const want = allowed && (vt > ahead.v + 0.4 || c.draft > 0.45);
-          if (want && Math.max(roomL, roomR) > 2.35) {
+          if (want && Math.max(roomL, roomR) > 2.35 + wx) {
             if (!c.passSide) c.passSide = roomL > roomR ? 1 : -1;
             latT = c.passSide > 0 ? left : right;
             c.attack = gap < 14;
@@ -561,7 +302,8 @@
       c.finished = true; c.finishTime = time; c.finishRank = ++finishCount;
       c.lapsDown = Math.max(0, TOTAL_LAPS - lapsDone);
       if (!winner) { winner = c; phase = 'finishing'; endT = time; emit({ type: 'win', car: c }); }
-      emit({ type: 'finish', car: c, rank: c.finishRank });
+      // the classified place so far: cars still running on a better lap will finish ahead
+      emit({ type: 'finish', car: c, rank: 1 + cars.filter((o) => o !== c && byRank(o, c) < 0).length });
     }
     function endRace() {
       // anyone still circulating is classified where they are
@@ -741,14 +483,13 @@
       // smoke from the damaged engine for a while
       if (c.outT < 28 && (c.smokeT -= dt) <= 0) {
         c.smokeT = 0.14;
-        const z = c.type === 'front' ? 1.5 : -1.5;
-        tmp.copy(c.world).addScaledVector(c.fwd, z).addScaledVector(c.up, 0.9);
+        tmp.copy(c.world).addScaledVector(c.fwd, c.rig.engineZ).addScaledVector(c.up, 0.9);
         puff('smoke', { pos: [tmp.x, tmp.y, tmp.z], vel: [0, 1.2, 0], size: 1.1, dark: true });
       }
     }
 
     function tyreSmoke(c, size) {
-      tmp.copy(c.world).addScaledVector(c.fwd, WHEEL_R).addScaledVector(c.up, 0.25);
+      tmp.copy(c.world).addScaledVector(c.fwd, c.rig.rearZ).addScaledVector(c.up, 0.25);
       puff(c.offroad ? 'dust' : 'smoke', { pos: [tmp.x, tmp.y, tmp.z], vel: [c.vel.x * 0.3, 0.6, c.vel.z * 0.3], size });
     }
 
@@ -761,21 +502,23 @@
           const b = cars[j];
           if (b.hidden || b.state === 'out' || b.state === 'ceremony') continue;
           const dx = a.world.x - b.world.x, dz = a.world.z - b.world.z;
-          if (dx * dx + dz * dz > 36) continue;
+          const len = (a.len + b.len) / 2, wid = (a.wid + b.wid) / 2, near = len + 1.6; // 4.4 and 1.95 for two cars
+          if (dx * dx + dz * dz > near * near) continue;
           const key = i * 32 + j;
           if (a.state === 'crash' || b.state === 'crash') { crashContact(a, b, key); continue; }
           const ds = wrapD(b.s - a.s), dl = b.lat - a.lat;
-          if (Math.abs(ds) > 4.4 || Math.abs(dl) > 1.95) continue;
+          if (Math.abs(ds) > len || Math.abs(dl) > wid) continue;
           const back = ds > 0 ? a : b, front = back === a ? b : a;
+          const inLine = Math.abs(dl) < wid - 0.65;
           let hit;
-          if (Math.abs(dl) < 1.3) {
+          if (inLine) {
             // nose into tail
             hit = Math.max(0, back.v - front.v);
             back.v = Math.min(back.v, front.v - 0.3);
-            back.dist -= 4.4 - Math.abs(ds);
+            back.dist -= len - Math.abs(ds);
           } else {
             // side by side: leaning on each other
-            const push = (1.95 - Math.abs(dl)) / 2, sd = Math.sign(dl) || 1;
+            const push = (wid - Math.abs(dl)) / 2, sd = Math.sign(dl) || 1;
             a.lat -= sd * push; b.lat += sd * push;
             hit = Math.abs(a.latV - b.latV) * 1.5;
             a.latV = b.latV = (a.latV + b.latV) / 2;
@@ -783,7 +526,7 @@
           if (hit > 2.5 && time - (pairT.get(key) || -9) > 2) {
             pairT.set(key, time);
             tmp.copy(a.world).add(b.world).multiplyScalar(0.5);
-            const victim = Math.abs(dl) < 1.3 ? front : Math.random() < 0.5 ? a : b;
+            const victim = inLine ? front : Math.random() < 0.5 ? a : b;
             const p = phase === 'race' && scPhase === 'none' && !victim.finished && time > victim.graceT ? Math.min(0.4, (hit - 3.5) / 12) : 0;
             puff('crash', { pos: [tmp.x, tmp.y + 0.5, tmp.z], vel: [front.vel.x, 0, front.vel.z], strength: clamp(hit / 30, 0.05, 0.4), colors: [a.base, b.base, '#141414'] });
             emit({ type: 'impact', car: victim, pos: tmp.clone(), strength: clamp(hit / 30, 0.05, 0.4) });
@@ -797,7 +540,9 @@
     }
     function crashContact(a, b, key) {
       const cc = a.state === 'crash' ? a : b, o = cc === a ? b : a;
-      if (cc.world.distanceTo(o.world) > 2.4 || time - (pairT.get(key) || -9) < 1) return;
+      const ext = (cc.len + o.len) / 2 - 4.4; // a longer vehicle (the bus) reaches further along the road
+      const apart = ext > 0 ? Math.abs(wrapD(o.s - cc.s)) > 2.4 + ext || Math.abs(o.lat - cc.lat) > 2.4 : cc.world.distanceTo(o.world) > 2.4;
+      if (apart || time - (pairT.get(key) || -9) < 1) return;
       pairT.set(key, time);
       const rvx = o.vel.x - cc.vel.x, rvz = o.vel.z - cc.vel.z, hit = Math.hypot(rvx, rvz);
       cc.cr.vx += rvx * 0.45; cc.cr.vz += rvz * 0.45; cc.cr.w += (Math.random() - 0.5) * 3;
@@ -811,8 +556,11 @@
     }
 
     // ---------- running order ----------
-    const group = (c) => (c.finished ? 0 : c.out ? 2 : 1);
-    const byRank = (a, b) => group(a) - group(b) || (group(a) === 0 ? a.finishRank - b.finishRank : b.dist - a.dist);
+    // By distance covered. A finished car counts only up to its last crossing of the line, so a lapped car
+    // that takes the flag early still ranks behind the cars on the lead lap; ties go to whoever crossed first.
+    const dnf = (c) => (c.out && !c.finished ? 1 : 0);
+    const reach = (c) => (c.finished ? (TOTAL_LAPS - c.lapsDown) * L : c.dist);
+    const byRank = (a, b) => dnf(a) - dnf(b) || reach(b) - reach(a) || a.finishRank - b.finishRank;
     function ranking() {
       const order = cars.slice().sort(byRank);
       order.forEach((c, i) => { c.pos = i + 1; c.gapBehind = 0; });
@@ -902,16 +650,16 @@
     let scPhase = 'none', scT = 0, scLap = 0, scWasHidden = true;
     function createSafetyCar() {
       const { col } = NR.world;
-      const e = { brand: 'Safety car', model: 'Safety car', engine: 'Mercedes-AMG', num: 0, sc: true, type: 'front', base: '#f3f4f1', accent: '#ff9a1f', accent2: '#1a3a7a', style: 'sc' };
-      const rig = buildModel(e);
+      const e = { brand: 'Safety car', model: 'Safety car', engine: 'Mercedes-AMG', body: 'Mercedes-AMG', road: true, num: 0, sc: true, type: 'front', base: '#f3f4f1', accent: '#ff9a1f', accent2: '#1a3a7a', style: 'sc' };
+      const rig = NR.buildCarModel(e);
       rig.wing.visible = false; // a road car: no rear wing
       rig.root.visible = false;
       scene.add(rig.root);
       // roof light bar: two amber lamps that flash alternately while it leads the field
-      const R = typeGeos('front').roof;
+      const R = rig.roofTop;
       const bar = new THREE.Group();
       bar.position.set(0, R.y + 0.05, R.z); bar.rotation.x = R.pitch;
-      bar.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.05, 0.28), sharedMats().carbon));
+      bar.add(new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.05, 0.28), NR.carMaterials().carbon));
       const lamps = [-1, 1].map((sd) => {
         const m = new THREE.MeshStandardMaterial({ color: col('#6b3a00'), emissive: col('#ffa000'), emissiveIntensity: 0.2, roughness: 0.25 });
         const l = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.09, 0.22), m);
@@ -920,7 +668,7 @@
       });
       rig.body.add(bar);
       return Object.assign({}, e, {
-        idx: -1, rig, lamps, fr: track.newFrame(),
+        idx: -1, rig, lamps, fr: track.newFrame(), len: 4.4, wid: 1.95,
         world: new THREE.Vector3(), fwd: new THREE.Vector3(), up: new THREE.Vector3(), quat: new THREE.Quaternion(), vel: new THREE.Vector3(),
         state: 'pit', hidden: true, s: 0, lat: 0, latV: 0, v: 0, rpm: 0.3, gear: 2, throttle: 0, accel: 0, slip: 0, steer: 0, latAcc: 0,
         brake: false, offroad: false, out: false, air: false, y: 0, roadY: 0, squash: 0, dmgBits: 0, spinV: null,
@@ -1022,8 +770,9 @@
       m.root.position.copy(sc.world); m.root.quaternion.copy(sc.quat);
       m.body.rotation.z = clamp(sc.latAcc * 0.004, -0.06, 0.06);
       m.body.rotation.x = clamp(-sc.accel * 0.003, -0.04, 0.04);
-      const spin = (sc.v * dt) / WHEEL_RAD;
+      const spin = (sc.v * dt) / m.wheelR;
       m.wheels.forEach((w) => { w.spin.rotation.x += spin; if (w.front) w.pivot.rotation.y = sc.steer * 1.2; });
+      blurRims(m, Math.abs(spin) > 0.3);
       m.tail.emissiveIntensity = sc.brake ? 3.2 : api.tailBase;
       // the light bar flashes while it leads the field and goes dark on its way in
       const on = sc.state === 'out', ph = (performance.now() / 1000 * 2.4) % 1;
@@ -1057,20 +806,35 @@
         m.body.position.y = -c.squash;
         m.blob.position.y = 0.04 - (c.y - c.roadY);
         m.blob.visible = upT.set(0, 1, 0).applyQuaternion(c.quat).y > 0.7;
-        const spin = ((c.spinV != null ? c.spinV : c.v) * dt) / WHEEL_RAD;
+        const spin = ((c.spinV != null ? c.spinV : c.v) * dt) / m.wheelR;
         m.wheels.forEach((w) => { w.spin.rotation.x += spin; if (w.front) w.pivot.rotation.y = c.steer * 1.2; });
+        if (m.rims) blurRims(m, Math.abs(spin) > 0.3);
         m.tail.emissiveIntensity = c.brake ? 3.2 : api.tailBase;
         m.wing.visible = !(c.dmgBits & 1);
         m.splitter.visible = !(c.dmgBits & 2);
+        if (m.flag && m.wing.visible) waveFlag(m.flag, dt, c.v);
       }
       renderSC(dt);
+    }
+    // spokes turning faster than the eye can follow (or the frame rate can show) become a blurred disc
+    function blurRims(m, on) {
+      if (m.blurred === on) return;
+      m.blurred = on;
+      for (const r of m.rims) r.material = on ? r.userData.mats.blur : r.userData.mats.sharp;
+    }
+    // the bus's roof flag: a travelling ripple, quicker and deeper with speed, pinned at the pole
+    function waveFlag(f, dt, v) {
+      const k = Math.min(v, 70) / 70;
+      f.t += dt * (3 + 9 * k);
+      const p = f.geo.attributes.position, r = f.rest, amp = 0.05 + 0.09 * k;
+      for (let i = 0; i < p.count; i++) { const x = r[i * 3]; p.setZ(i, Math.sin(x * 4.2 - f.t) * amp * x); }
+      p.needsUpdate = true;
+      f.geo.computeVertexNormals();
     }
 
     return api;
   }
 
   NR.ENTRIES = ENTRIES;
-  NR.carMaterials = sharedMats;
-  NR.buildCockpit = buildCockpit;
   NR.createRace = createRace;
 })();
