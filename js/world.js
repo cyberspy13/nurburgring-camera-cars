@@ -272,14 +272,21 @@
       const field = swy / sw;
       const nr = track.nearest(x, z);
       const dEdge = nr ? nr.d - W : 300;
+      // the pit lane and pit building sit on ground levelled with the road
+      let pitW = 0;
+      if (nr && nr.lat > 0) {
+        const PIT = track.PIT, dp = nr.j * track.ds - track.S_FINISH, d = dp - track.L * Math.round(dp / track.L);
+        pitW = 34 * smooth(PIT.entry - 40, PIT.laneIn + 10, d) * (1 - smooth(PIT.laneOut - 10, PIT.exit + 40, d));
+      }
+      const dFlat = dEdge - pitW;
       const hills = (fbm(x * 0.0021 + 3, z * 0.0021 - 7, 4) - 0.35) * 70 + (fbm(x * 0.012, z * 0.012, 2) - 0.5) * 5;
       const rEdge = Math.max(Math.abs(x - CX) - 1250, Math.abs(z - CZ) - 1000, 0);
       const castle = 46 * Math.exp(-((x + 240) ** 2 + (z - 30) ** 2) / (2 * 135 * 135));
       let h = field + (hills + castle) * smooth(14, 220, dEdge) + rEdge * 0.22;
-      if (nr && dEdge < 60) {
+      if (nr && dFlat < 60) {
         const road = nr.surfY - 0.12;
         if (dEdge < 0) h = nr.surfY - 0.3;
-        else h = road + (h - road) * smooth(9, 60, dEdge);
+        else h = road + (h - road) * smooth(9, 60, dFlat);
       }
       heights[i] = h;
       pos.setY(i, h);
@@ -367,15 +374,24 @@
     const kerbMat = new THREE.MeshStandardMaterial({ map: TEX.kerb, roughness: 0.6 });
     kerbGeos.forEach((g) => { const m = new THREE.Mesh(g, kerbMat); m.receiveShadow = true; scene.add(m); });
 
-    // Armco: double steel rail both sides plus posts
+    // Armco: double steel rail both sides plus posts, open on the inside where the pit lane runs
+    const PIT = track.PIT;
+    const dOf = (j) => { const d = j * ds - track.S_FINISH; return d - track.L * Math.round(d / track.L); };
+    const inPits = (j) => { const d = dOf(j); return d > PIT.entry - 6 && d < PIT.exit + 6; };
     const railMat = new THREE.MeshStandardMaterial({ map: TEX.armco, metalness: 0.75, roughness: 0.38, side: THREE.DoubleSide });
     const RL = W + 5.2;
     const postGeo = new THREE.BoxGeometry(0.14, 0.9, 0.14);
     const posts = new THREE.InstancedMesh(postGeo, new THREE.MeshStandardMaterial({ color: col('#6d7379'), metalness: 0.6, roughness: 0.5 }), Math.ceil(NS / 2) * 2 + 2);
     const m4 = new THREE.Matrix4();
     let pc = 0;
+    const runsOutsidePits = [];
+    all.forEach((j, i) => {
+      if (inPits(j)) return;
+      if (i === 0 || inPits(all[i - 1])) runsOutsidePits.push([]);
+      runsOutsidePits[runsOutsidePits.length - 1].push(j);
+    });
     for (let side = -1; side <= 1; side += 2) {
-      const g = ribbon(track, [all], (j, r) => {
+      const g = ribbon(track, side > 0 ? runsOutsidePits : [all], (j, r) => {
         const lat = side * RL;
         const base = P[j * 3 + 1] + S[j * 3 + 1] * side * W - 0.12;
         const x = P[j * 3] + S[j * 3] * lat, z = P[j * 3 + 2] + S[j * 3 + 2] * lat;
@@ -385,6 +401,7 @@
       rail.castShadow = true; rail.receiveShadow = true;
       scene.add(rail);
       for (let j = 0; j < NS; j += 2) {
+        if (side > 0 && inPits(j)) continue;
         const lat = side * (RL + 0.12);
         const base = P[j * 3 + 1] + S[j * 3 + 1] * side * W - 0.12;
         m4.makeTranslation(P[j * 3] + S[j * 3] * lat, base + 0.45, P[j * 3 + 2] + S[j * 3 + 2] * lat);
@@ -394,7 +411,63 @@
     posts.count = pc;
     posts.castShadow = true;
     scene.add(posts);
+    buildPitLane(track, scene, dOf);
     return road;
+  }
+
+  // ---------- the pit lane: entry and exit roads, the lane past the boxes, the pit wall and its lines ----------
+  function buildPitLane(track, scene, dOf) {
+    const { P, S, NS, ds, HALF_W: W, PIT } = track;
+    const v3 = (j, lat, lift) => [P[j * 3] + S[j * 3] * lat, P[j * 3 + 1] + S[j * 3 + 1] * lat + lift, P[j * 3 + 2] + S[j * 3 + 2] * lat];
+    const idxAt = (d) => (((Math.round((track.S_FINISH + d) / ds)) % NS) + NS) % NS;
+    const rows = (d0, d1) => { const out = [], j0 = idxAt(d0), n = Math.round((d1 - d0) / ds); for (let k = 0; k <= n; k++) out.push((j0 + k) % NS); return out; };
+    const lane = (d) => d >= PIT.laneIn && d <= PIT.laneOut;
+    // the surface's edges: the entry and exit roads are a lane wide; past the boxes it widens to the garages
+    const inner = (d) => (lane(d) ? PIT.wall + 0.6 : Math.max(W + 0.02, PIT.path(d) - PIT.half));
+    const outer = (d) => {
+      if (!lane(d)) return PIT.path(d) + PIT.half;
+      const g = smooth(PIT.laneIn, PIT.laneIn + 30, d) * (1 - smooth(PIT.laneOut - 30, PIT.laneOut, d));
+      return PIT.fast + PIT.half + (PIT.garage - PIT.fast - PIT.half) * g;
+    };
+    const surf = ribbon(track, [rows(PIT.entry, PIT.exit)], (j, r) => {
+      const d = dOf(j), a = inner(d), b = outer(d), v = (r * ds) / 16;
+      return [0, 1, 2, 3, 4].map((q) => [...v3(j, a + ((b - a) * q) / 4, 0.035), 0.1 + 0.2 * q, v]);
+    });
+    const lanes = new THREE.Mesh(surf, new THREE.MeshStandardMaterial({ map: TEX.asphalt, roughness: 0.9, metalness: 0 }));
+    lanes.receiveShadow = true;
+    scene.add(lanes);
+
+    // the pit wall between the track and the lane: two faces and a top, capped at both ends
+    const concrete = new THREE.MeshStandardMaterial({ color: col('#cfd2d4'), roughness: 0.85 });
+    const H = 1.05, a = PIT.wall, b = PIT.wall + 0.6, wallRows = [rows(PIT.laneIn, PIT.laneOut)];
+    [[a, a], [a, b], [b, b]].forEach(([l0, l1], face) => {
+      const g = ribbon(track, wallRows, (j, r) => {
+        const y0 = face === 1 ? H : -0.1, y1 = H;
+        return face === 1 ? [[...v3(j, l0, y1), 0, 0], [...v3(j, l1, y1), 1, 0]] : [[...v3(j, l0, y0), 0, 0], [...v3(j, l1, y1), 1, 0]];
+      });
+      const m = new THREE.Mesh(g, concrete);
+      m.material.side = THREE.DoubleSide; m.castShadow = true; m.receiveShadow = true;
+      scene.add(m);
+    });
+    const fr = track.newFrame(), basis = new THREE.Matrix4();
+    const place = (m, d, lat, lift) => {
+      track.frame(track.S_FINISH + d, lat, fr);
+      m.position.copy(fr.pos); m.position.y += lift;
+      m.quaternion.setFromRotationMatrix(basis.makeBasis(fr.side, fr.up, fr.fwd));
+      scene.add(m);
+      return m;
+    };
+    [PIT.laneIn, PIT.laneOut].forEach((d) => place(new THREE.Mesh(new THREE.BoxGeometry(0.6, H + 0.1, 0.06), concrete), d, (a + b) / 2, (H - 0.1) / 2));
+
+    // painted lines: the edge of the fast lane, and the speed limit lines across the lane
+    const paint = new THREE.MeshStandardMaterial({ color: col('#e9e9e4'), roughness: 0.7, polygonOffset: true, polygonOffsetFactor: -2 });
+    const edge = ribbon(track, [rows(PIT.laneIn + 30, PIT.laneOut - 30)], (j) => [[...v3(j, PIT.fast + PIT.half - 0.08, 0.04), 0, 0], [...v3(j, PIT.fast + PIT.half + 0.08, 0.04), 1, 0]]);
+    scene.add(new THREE.Mesh(edge, paint));
+    [PIT.laneIn, PIT.laneOut].forEach((d) => {
+      const w = PIT.half * 2;
+      const m = place(new THREE.Mesh(new THREE.PlaneGeometry(w, 0.4), paint), d, PIT.fast, 0.045);
+      m.rotateX(-Math.PI / 2);
+    });
   }
 
   NR.world = { merge, col, smooth, hash, vnoise, fbm, rand, canvasTex, TEX, SKY, SUN_DIR, makeTextures, buildSky, buildTerrain, buildRoad };

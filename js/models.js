@@ -1010,6 +1010,42 @@
       g.fillText(text, w / 2, h / 2 + size * 0.06);
     });
   }
+  // the Parkroyal Community School crest, in a unit box: a crown of two uprights either side of a diamond
+  // standing on a wide triangle
+  const CREST = [
+    [[0, 0], [0.16, 0], [0.36, 0.41], [0.05, 1], [0, 1]],
+    [[1, 0], [0.84, 0], [0.64, 0.41], [0.95, 1], [1, 1]],
+    [[0.5, 0], [0.64, 0.4], [0.5, 0.57], [0.36, 0.4]],
+    [[0.5, 0.56], [0.94, 1], [0.06, 1]],
+  ];
+  function drawCrest(g, x, y, w, h) {
+    CREST.forEach((poly) => {
+      g.beginPath();
+      poly.forEach(([u, v], i) => (i ? g.lineTo(x + u * w, y + v * h) : g.moveTo(x + u * w, y + v * h)));
+      g.closePath(); g.fill();
+    });
+  }
+  // the school's name between the decks, crest first, on a clear canvas so the red paint shows through
+  function schoolSideTex(cream) {
+    return NR.world.canvasTex(2048, 112, (g, w, h) => {
+      g.fillStyle = cream; g.fillRect(0, 0, w, 6); g.fillRect(0, h - 6, w, 6);
+      const text = 'PARKROYAL COMMUNITY SCHOOL', ch = 80, cw = ch * 1.29, gap = 28;
+      g.font = `800 92px ${FONT}`; g.textBaseline = 'middle';
+      const x0 = (w - (cw + gap + g.measureText(text).width)) / 2;
+      g.fillStyle = '#ffffff';
+      drawCrest(g, x0, (h - ch) / 2, cw, ch);
+      g.fillText(text, x0 + cw + gap, h / 2 + 5);
+    });
+  }
+  // the crest over the name, laid out as on the school's bag, for the back of the bus
+  function schoolBackTex() {
+    return NR.world.canvasTex(512, 320, (g, w) => {
+      g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      drawCrest(g, (w - 190) / 2, 14, 190, 148);
+      g.font = `800 78px ${FONT}`; g.fillText('PARKROYAL', w / 2, 212, w * 0.94);
+      g.font = `700 50px ${FONT}`; g.fillText('COMMUNITY SCHOOL', w / 2, 280, w * 0.94);
+    });
+  }
   function buildBusModel(e) {
     const { col } = NR.world;
     const M = sharedMats();
@@ -1027,8 +1063,8 @@
     const numMat = new THREE.MeshStandardMaterial({ map: numberTex(e), transparent: true, roughness: 0.4 });
     add(new THREE.PlaneGeometry(1.5, 1.16), numMat, 0, 0.045, 0.6, roof).rotation.set(-Math.PI / 2, 0, Math.PI); // reads from behind, like the cars'
 
-    // windows on both decks, window pillars, the cream band between the decks, race numbers, wheel arches
-    const cream = new THREE.MeshStandardMaterial({ color: col(e.accent), roughness: 0.5 });
+    // windows on both decks, window pillars, the school's name between the decks, race numbers, wheel arches
+    const school = new THREE.MeshStandardMaterial({ map: schoolSideTex(e.accent), transparent: true, roughness: 0.4 });
     const LOW = [1.36, 2.12], UP = [2.72, 3.62], LY = (LOW[0] + LOW[1]) / 2, UY = (UP[0] + UP[1]) / 2;
     [-1, 1].forEach((sd) => {
       const x = sd * (XS + 0.012);
@@ -1042,7 +1078,7 @@
         box(0.03, UP[1] - UP[0] + 0.02, 0.1, sd * (XS + 0.02), UY, z, paint);
         if (sd < 0 || z < 3.2) box(0.03, LOW[1] - LOW[0] + 0.02, 0.1, sd * (XS + 0.02), LY, z, paint);
       }
-      box(0.02, 0.16, BL - 0.1, x, 2.42, 0, cream, glass);
+      add(new THREE.PlaneGeometry(BL - 0.4, (BL - 0.4) * 112 / 2048), school, sd * (XS + 0.016), 2.42, 0, glass).rotation.y = sd * Math.PI / 2;
       add(new THREE.PlaneGeometry(0.95, 0.74), numMat, sd * (XS + 0.016), 0.95, 1.0, glass).rotation.y = sd * Math.PI / 2;
       [BUS.axleF, BUS.axleR].forEach((z) => { add(new THREE.CircleGeometry(0.66, 20, 0, Math.PI), M.tire, sd * (XS + 0.008), WR, z, glass).rotation.y = sd * Math.PI / 2; });
     });
@@ -1069,6 +1105,8 @@
     [-1, 1].forEach((sd) => box(0.2, 0.42, 0.04, sd * (XS - 0.18), 0.95, zr, tail, glass));
     box(BW + 0.04, 0.24, 0.14, 0, 0.36, -(ZF + 0.06), M.carbon, glass);
     sign(0.72, 0.155, signTex(e.reg, 256, 56, '#f7c600', '#111111', 46), 0, 0.64, zr - 0.012, Math.PI);
+    const crest = new THREE.MeshStandardMaterial({ map: schoolBackTex(), transparent: true, roughness: 0.4 });
+    add(new THREE.PlaneGeometry(1.6, 1.0), crest, 0, 2.0, zr - 0.012, glass).rotation.y = Math.PI;
 
     // the roof flag on its pole, streaming backwards; the far side carries a mirrored copy so it reads both ways
     const wing = new THREE.Group(); body.add(wing);
@@ -1154,4 +1192,5 @@
   NR.buildCarModel = (e) => (e.type === 'bus' ? buildBusModel(e) : buildModel(e));
   NR.carMaterials = sharedMats;
   NR.buildCockpit = buildCockpit;
+  NR.drawCrest = drawCrest; // the fans' Parkroyal flags carry it too
 })();

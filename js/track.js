@@ -234,9 +234,30 @@
     };
     const sOf = (name) => (sections.find((q) => q.name === name) || sections[0]).s;
 
+    // The start/finish line, and the pit lane on the inside (+lat) of the straight. Pit distances `d` are
+    // measured from the line; lats from the road's centre. The entry road leaves the track at the exit of
+    // the last corner, the 60 km/h lane runs past thirteen boxes (one per car, in entry order) behind the pit
+    // wall, and the exit road rejoins before Hatzenbach.
+    const S_FINISH = sOf('Start / Finish') + 120;
+    const sm = (x) => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
+    const PIT = {
+      entry: -170, laneIn: -90, laneOut: 150, exit: 232, // entry road / speed limit on / speed limit off / back on the track
+      wall: HALF_W + 4.8, fast: HALF_W + 8.4, box: HALF_W + 13.4, garage: HALF_W + 17.5, half: 3, // lats; `half`: half a lane's width
+      boxes: Array.from({ length: 12 }, (_, i) => -48 + i * 13).concat(114), // the last, longer box is the bus's
+      limit: 16.7, // m/s
+      // the centre of a car's path through the pits at distance d
+      path(d) {
+        const on = HALF_W - 1.6;
+        if (d < PIT.entry || d > PIT.exit) return on;
+        if (d < PIT.laneIn) return on + (PIT.fast - on) * sm((d - PIT.entry) / (PIT.laneIn - PIT.entry));
+        if (d > PIT.laneOut) return PIT.fast + (on - PIT.fast) * sm((d - PIT.laneOut) / (PIT.exit - PIT.laneOut));
+        return PIT.fast;
+      },
+    };
+
     return {
       HALF_W, L, NS, ds, P, F, S, Up, kS, kW, bank, bankMag, vProf, line, secOf,
-      sections, nearest, frame, newFrame, lerpArr, sOf, ctrl: PTS,
+      sections, nearest, frame, newFrame, lerpArr, sOf, ctrl: PTS, S_FINISH, PIT,
     };
   }
 

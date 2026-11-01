@@ -33,8 +33,9 @@
   // sliding body after a mistake or contact), 'out' (retired, parked), 'ceremony' (podium celebration).
   function createRace(track, scene, fx) {
     const { rand } = NR.world;
-    const L = track.L, W = track.HALF_W;
+    const L = track.L, W = track.HALF_W, PIT = track.PIT;
     const S0 = NR.S_FINISH;
+    const inLane = (c) => !!c.pit && c.pit.phase !== 'in'; // off the track, down the pit road or in the box
     const wrapS = (s) => ((s % L) + L) % L;
     const wrapD = (d) => d - L * Math.round(d / L); // signed distance along the lap
     const wrapA = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -81,6 +82,8 @@
         state: 'race', out: false, hidden: false, finished: false, finishTime: 0, finishRank: 0, lapsDown: 0,
         cr: null, dmgBits: 0, yawOff: 0, rejoin: 0, smokeT: 0, outT: 0, spinV: null, gainT: -99, loseT: -99,
         gapAhead: 0, gapBehind: 0, graceT: 22, // the rolling start: let the pack string out before contact can spin anyone
+        // the compulsory pit stop: called in at the end of lap 5 to 11; `pit` holds the stop while it's under way
+        pitLap: 5 + Math.floor(rand() * 7), pit: null, pitted: false, tyreLap: 0, jack: 0,
       });
       c.vel.set(0, 0, 0);
     }
@@ -124,7 +127,11 @@
     // ---------- racing ----------
     function driveCar(c, dt) {
       const s = wrapS(S0 + c.dist);
-      const tyre = 1 - c.wear * Math.max(0, c.lapIdx || 0);
+      const tyre = 1 - c.wear * Math.max(0, (c.lapIdx || 0) - c.tyreLap);
+      const dLine = wrapD(c.dist); // distance past the line, for the pit lane
+      if (!c.pit && !c.pitted && !c.finished && phase === 'race' && c.lap < TOTAL_LAPS && dLine > PIT.entry - 420 && dLine < PIT.entry - 300 &&
+        (c.lapIdx + 1 >= c.pitLap || (scPhase === 'deployed' && c.lapIdx >= 3))) c.pit = { phase: 'in' }; // early under a safety car
+      const lane = inLane(c);
       const form = 1 + 0.012 * Math.sin(time * 0.05 + c.ph) + 0.008 * Math.sin(time * 0.13 + c.ph * 2);
       // racing instinct: a driver who has dropped back pushes a little harder, a comfortable leader eases off
       const chase = 1 + clamp((c.gapAhead - 1.2) * 0.0025, 0, 0.009) - (c.gapBehind > 4 ? 0.004 : 0);
@@ -138,73 +145,79 @@
       if (yellow) vt *= 0.86;
       if (c.finished) vt = Math.min(vt, 32); // cool-down lap
 
-      // traffic: the nearest running car ahead on the road, lapped cars included
-      let ahead = null, gap = 1e9;
-      for (const o of cars) {
-        if (o === c || o.state !== 'race') continue;
-        const d = wrapD(o.s - s);
-        if (d > 0 && d < gap) { gap = d; ahead = o; }
-      }
-      if (!sc.hidden) { const d = wrapD(sc.s - s); if (d > 0 && d < gap) { gap = d; ahead = sc; } }
-      // the distances below are tuned for two cars: a longer or wider vehicle (the bus) leaves less room
-      if (ahead) gap -= (ahead.len + c.len) / 2 - 4.4;
-      const wx = ahead ? (ahead.wid + c.wid) / 2 - 1.95 : 0;
-      let draftT = 0;
-      c.attack = false;
-      if (ahead && gap > 4 && gap < 45 && Math.abs(ahead.lat - c.lat) < 1.8 + wx && c.v > 40) draftT = 1 - gap / 45; // slipstream
-      if (ahead && gap < 34) {
-        const overlap = Math.abs(ahead.lat - c.lat) < 2.25 + wx;
-        if (overlap || gap < 8) {
-          const lim = W - 1.25;
-          const left = Math.min(lim, ahead.lat + 2.9 + wx), right = Math.max(-lim, ahead.lat - 2.9 - wx);
-          const roomL = left - ahead.lat, roomR = ahead.lat - right;
-          // no passing under yellow flags (except cars crawling back) or on the cool-down lap
-          const allowed = !c.finished && !ahead.finished && ahead !== sc && (!yellow || ahead.v < 20) && (!scOn || ahead.v < 15);
-          const want = allowed && (vt > ahead.v + 0.4 || c.draft > 0.45);
-          if (want && Math.max(roomL, roomR) > 2.35 + wx) {
-            if (!c.passSide) c.passSide = roomL > roomR ? 1 : -1;
-            latT = c.passSide > 0 ? left : right;
-            c.attack = gap < 14;
-          }
-          if (overlap && gap < 16) vt = Math.min(vt, ahead.v + (gap - 7.5) * 0.9);
+      if (!lane) {
+        // traffic: the nearest running car ahead on the road, lapped cars included
+        let ahead = null, gap = 1e9;
+        for (const o of cars) {
+          if (o === c || o.state !== 'race' || (inLane(o) && o.lat > W + 0.5)) continue; // cars down the pit lane are out of the fight
+          const d = wrapD(o.s - s);
+          if (d > 0 && d < gap) { gap = d; ahead = o; }
         }
-      } else c.passSide = 0;
-      c.draft += (draftT - c.draft) * Math.min(1, dt * 1.5);
+        if (!sc.hidden) { const d = wrapD(sc.s - s); if (d > 0 && d < gap) { gap = d; ahead = sc; } }
+        // the distances below are tuned for two cars: a longer or wider vehicle (the bus) leaves less room
+        if (ahead) gap -= (ahead.len + c.len) / 2 - 4.4;
+        const wx = ahead ? (ahead.wid + c.wid) / 2 - 1.95 : 0;
+        let draftT = 0;
+        c.attack = false;
+        if (ahead && gap > 4 && gap < 45 && Math.abs(ahead.lat - c.lat) < 1.8 + wx && c.v > 40) draftT = 1 - gap / 45; // slipstream
+        if (ahead && gap < 34) {
+          const overlap = Math.abs(ahead.lat - c.lat) < 2.25 + wx;
+          if (overlap || gap < 8) {
+            const lim = W - 1.25;
+            const left = Math.min(lim, ahead.lat + 2.9 + wx), right = Math.max(-lim, ahead.lat - 2.9 - wx);
+            const roomL = left - ahead.lat, roomR = ahead.lat - right;
+            // no passing under yellow flags (except cars crawling back) or on the cool-down lap
+            const allowed = !c.finished && !ahead.finished && ahead !== sc && (!yellow || ahead.v < 20) && (!scOn || ahead.v < 15);
+            const want = allowed && (vt > ahead.v + 0.4 || c.draft > 0.45);
+            if (want && Math.max(roomL, roomR) > 2.35 + wx) {
+              if (!c.passSide) c.passSide = roomL > roomR ? 1 : -1;
+              latT = c.passSide > 0 ? left : right;
+              c.attack = gap < 14;
+            }
+            if (overlap && gap < 16) vt = Math.min(vt, ahead.v + (gap - 7.5) * 0.9);
+          }
+        } else c.passSide = 0;
+        c.draft += (draftT - c.draft) * Math.min(1, dt * 1.5);
 
-      // behind the safety car: single file, no overtaking, a steady gap to the car in front
-      // (a car crawling back after a spin may still be passed)
-      if (scOn && !c.finished && !(ahead && ahead !== sc && ahead.v < 15)) {
-        c.passSide = 0; c.attack = false;
-        latT = track.lerpArr(track.line, s);
-        if (ahead && gap < 240) vt = Math.min(vt, Math.max(0, ahead.v + (gap - 16) * 0.5));
-        else vt *= 0.8; // catching the queue at a safe pace
-        if (scPhase === 'restart' && c === leaderOnTrack()) vt = Math.min(vt, 40);
-      }
+        // behind the safety car: single file, no overtaking, a steady gap to the car in front
+        // (a car crawling back after a spin may still be passed)
+        if (scOn && !c.finished && !(ahead && ahead !== sc && ahead.v < 15)) {
+          c.passSide = 0; c.attack = false;
+          latT = track.lerpArr(track.line, s);
+          if (ahead && gap < 240) vt = Math.min(vt, Math.max(0, ahead.v + (gap - 16) * 0.5));
+          else vt *= 0.8; // catching the queue at a safe pace
+          if (scPhase === 'restart' && c === leaderOnTrack()) vt = Math.min(vt, 40);
+        }
 
-      // sliding or stranded cars: steer round them, braking hard if there's no room
-      for (const o of cars) {
-        if ((o.state !== 'crash' && o.state !== 'out') || o.hidden || Math.abs(o.lat) > W + 1.2) continue;
-        const d = wrapD(o.s - s);
-        if (d < -3 || d > 170) continue;
-        const pass = o.lat > 0 ? o.lat - 3.6 : o.lat + 3.6;
-        if (Math.abs(pass) < W - 0.9) latT = pass;
-        else vt = Math.min(vt, Math.sqrt(2 * 9 * Math.max(0, d - 7)));
-        if (o.state === 'crash') vt = Math.min(vt, 14 + Math.sqrt(2 * 9 * Math.max(0, d - 12)));
-      }
+        // sliding or stranded cars: steer round them, braking hard if there's no room
+        for (const o of cars) {
+          if ((o.state !== 'crash' && o.state !== 'out') || o.hidden || Math.abs(o.lat) > W + 1.2) continue;
+          const d = wrapD(o.s - s);
+          if (d < -3 || d > 170) continue;
+          const pass = o.lat > 0 ? o.lat - 3.6 : o.lat + 3.6;
+          if (Math.abs(pass) < W - 0.9) latT = pass;
+          else vt = Math.min(vt, Math.sqrt(2 * 9 * Math.max(0, d - 7)));
+          if (o.state === 'crash') vt = Math.min(vt, 14 + Math.sqrt(2 * 9 * Math.max(0, d - 12)));
+        }
 
-      // after a spin: turn back the right way round, then rejoin with care
-      if (c.rejoin > 0) {
-        c.yawOff -= Math.sign(c.yawOff) * Math.min(Math.abs(c.yawOff), 1.4 * dt);
-        vt = Math.min(vt, Math.abs(c.yawOff) > 0.25 ? 2.5 : 30);
-        if (Math.abs(c.yawOff) < 1e-3 && Math.abs(c.lat) < W - 1 && c.v > 20) c.rejoin = 0;
+        // after a spin: turn back the right way round, then rejoin with care
+        if (c.rejoin > 0) {
+          c.yawOff -= Math.sign(c.yawOff) * Math.min(Math.abs(c.yawOff), 1.4 * dt);
+          vt = Math.min(vt, Math.abs(c.yawOff) > 0.25 ? 2.5 : 30);
+          if (Math.abs(c.yawOff) < 1e-3 && Math.abs(c.lat) < W - 1 && c.v > 20) c.rejoin = 0;
+        }
+
       }
+      let lim = Math.max(W - 1.1, c.latLim), slope = null;
+      if (c.pit) ({ vt, latT, lim, slope } = pitDrive(c, dLine, dt, vt, latT, lim));
 
       // lateral movement (a car rejoining from the grass may be outside the usual limit for a while)
       c.latLim = Math.max(0, c.latLim - dt * 1.5);
-      const lim = Math.max(W - 1.1, c.latLim);
       const dl = clamp((latT - c.lat) * 0.9, -1, 1);
       c.latV += (dl * 3.2 - c.latV) * Math.min(1, dt * 3);
       c.lat = clamp(c.lat + c.latV * dt, -lim, lim);
+      // in the pit lane the car is placed exactly on its line, turned to follow it
+      if (slope != null) { c.lat = latT; c.latV = slope * Math.max(8, c.v); }
 
       // longitudinal
       const vPrev = c.v;
@@ -252,6 +265,7 @@
         c.air = true; c.airTime = 0; c.vy -= 9.81 * dt; c.y += c.vy * dt;
       } else { c.vy = roadVy; c.y = roadY; }
       c.squash *= Math.exp(-dt * 6);
+      c.y += c.jack; // up on its air jacks in the pits
 
       // orientation
       const k = track.lerpArr(track.kS, sNow);
@@ -286,7 +300,7 @@
       if (c.slip > 0.3 && (c.smokeT -= dt) <= 0) { c.smokeT = 0.06; tyreSmoke(c, 0.6); }
 
       // mistakes: the closer to the grip limit, the likelier; the first lap, battles and worn tyres raise the odds
-      if (phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && time > 14 && time > c.graceT) {
+      if (phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && !c.pit && time > 14 && time > c.graceT) {
         const stress = clamp((use - 0.6) / 0.4, 0, 1);
         let rate = api.hazard * stress * stress * c.risk * (1 + 8 * (1 - tyre)) * (c.attack ? 3 : 1) * ((c.lapIdx || 0) < 1 ? 2 : 1);
         rate *= api.weather.risk;
@@ -294,6 +308,97 @@
         if (Math.random() < rate * dt) startCrash(c, Math.random() < 0.6 ? 'spin' : 'off');
       }
     }
+    // ---------- the pit stop ----------
+    // A GT3 endurance stop: in at 60 km/h, up on the air jacks, a driver change while the fuel goes in, then
+    // four new tyres (no tyre work while fuel flows), down off the jacks, and released when the lane is clear.
+    // Returns the target speed, lateral target and limit for this step, and in the lane the line's slope.
+    const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+    function pitDrive(c, d, dt, vt, latT, lim) {
+      const p = c.pit, box = PIT.boxes[c.idx];
+      // pit cars ahead in the fast lane: keep a gap
+      const queue = (v) => {
+        for (const o of cars) {
+          if (o === c || !inLane(o) || o.pit.phase === 'stop' || Math.abs(o.lat - c.lat) > 2.2) continue;
+          const gap = wrapD(o.dist - c.dist) - (o.len + c.len) / 2;
+          if (gap > -1 && gap < 14) v = Math.min(v, Math.max(0, o.v + (gap - 5) * 0.8));
+        }
+        return v;
+      };
+      if (p.phase === 'in') {
+        // lining up on the inside of the last corner and braking for the pit road
+        if (d > PIT.entry - 220 && d < PIT.entry) { latT = PIT.path(PIT.entry); vt = Math.min(vt, 24 + (PIT.entry - d) * 0.25); }
+        if (d >= PIT.entry && d < PIT.entry + 40) {
+          p.phase = 'enter'; p.callT = time;
+          emit({ type: 'pitIn', car: c, lap: c.lap });
+        }
+        if (p.phase === 'in') return { vt, latT, lim, slope: null };
+      }
+      c.draft = 0; c.passSide = 0; c.attack = false;
+      lim = PIT.garage;
+      let line;
+      switch (p.phase) {
+        case 'enter':
+          line = PIT.path;
+          vt = queue(Math.min(vt, PIT.limit + Math.max(0, PIT.laneIn - d) * 0.1));
+          if (d >= PIT.laneIn) p.phase = 'lane';
+          break;
+        case 'lane':
+          line = () => PIT.fast; vt = queue(PIT.limit);
+          if (d >= box - 15) p.phase = 'box';
+          break;
+        case 'box': {
+          // swing into the box once past the car in the box behind, and stop on the marks
+          line = (x) => PIT.fast + (PIT.box - PIT.fast) * smooth01((x - (box - 14)) / 12);
+          vt = Math.min(PIT.limit, Math.sqrt(2 * 3.2 * Math.max(0, box - d)) + 0.15);
+          if (box - d < 0.3 && c.v < 2.5) {
+            c.dist += box - d; c.v = 0; c.lat = PIT.box; c.latV = 0;
+            p.phase = 'stop'; p.t = 0; p.plan = pitPlan(c);
+          }
+          break;
+        }
+        case 'stop': {
+          const P = p.plan;
+          p.t += dt;
+          vt = 0; c.v = 0; line = () => PIT.box;
+          c.jack = 0.07 * smooth01((p.t - P.lift) / 0.4) * (1 - smooth01((p.t - P.drop) / 0.3));
+          // the lollipop man holds the car while anything is coming down the fast lane
+          const traffic = cars.some((o) => o !== c && inLane(o) && o.pit.phase !== 'stop' && o.pit.phase !== 'box' &&
+            Math.abs(o.lat - PIT.fast) < 2 && wrapD(o.dist - c.dist) > -32 && wrapD(o.dist - c.dist) < 6);
+          if (p.t >= P.release && !traffic) {
+            p.phase = 'go'; p.relT = time; c.jack = 0;
+            c.tyreLap = c.lapIdx; c.pitted = true;
+            const repaired = c.dmgBits !== 0;
+            c.dmgBits = 0; // a new rear wing and splitter if they were knocked off
+            emit({ type: 'pitOut', car: c, stationary: p.t, repaired });
+          }
+          break;
+        }
+        case 'go': { // out into the fast lane before reaching the box ahead (the bus, in the last box, first clears its crew)
+          const straight = c.len > 6 ? c.len - 1 : 1;
+          line = (x) => PIT.box + (PIT.fast - PIT.box) * smooth01((x - box - straight) / 10);
+          vt = queue(PIT.limit);
+          if (d >= box + straight + 10) p.phase = 'out';
+          break;
+        }
+        case 'out':
+          line = PIT.path;
+          vt = d < PIT.laneOut ? queue(PIT.limit) : vt;
+          if (d >= PIT.exit) { c.pit = null; lim = Math.max(W - 1.1, c.latLim); }
+          break;
+      }
+      latT = line(d);
+      return { vt, latT, lim, slope: (line(d + 0.25) - line(d - 0.25)) / 0.5 };
+    }
+    function pitPlan(c) {
+      const fuelOn = 3.2, fuelOff = fuelOn + 21 + Math.random() * 6;
+      const tyresOn = fuelOff + 0.6;
+      // now and then a wheel nut sticks and that corner takes a few seconds longer
+      const stuck = c.rig.wheels.map(() => (Math.random() < 0.03 ? 3 + Math.random() * 4 : 0));
+      const wheels = stuck.map((s) => tyresOn + 4.6 + s);
+      const drop = Math.max(...wheels) + 0.4;
+      return { lift: 1.2, fuelOn, fuelOff, tyresOn, stuck, wheels, drop, driverOut: 0.8, driverIn: 4.4, release: drop + 0.8 };
+    }
+
     api.hazard = 0.0012; // incidents per second at full stress (tuned for a handful per race)
     api.weather = { grip: 1, risk: 1 }; // set by weather.js
     api.tailBase = 0.5;                 // tail-light glow; brighter after dark
@@ -501,6 +606,7 @@
         for (let j = i + 1; j < cars.length; j++) {
           const b = cars[j];
           if (b.hidden || b.state === 'out' || b.state === 'ceremony') continue;
+          if (inLane(a) || inLane(b)) continue; // the pit lane is kept clear of the race
           const dx = a.world.x - b.world.x, dz = a.world.z - b.world.z;
           const len = (a.len + b.len) / 2, wid = (a.wid + b.wid) / 2, near = len + 1.6; // 4.4 and 1.95 for two cars
           if (dx * dx + dz * dz > near * near) continue;
@@ -572,9 +678,9 @@
         prev = c;
       }
       for (const c of order) {
-        if (c.pos >= c.prevPos || c.state !== 'race' || c.finished || c.rejoin) continue;
+        if (c.pos >= c.prevPos || c.state !== 'race' || c.finished || c.rejoin || inLane(c)) continue;
         for (const o of order) {
-          if (o.prevPos < c.prevPos && o.pos > c.pos && o.state === 'race' && !o.finished && Math.abs(wrapD(o.s - c.s)) < 40) {
+          if (o.prevPos < c.prevPos && o.pos > c.pos && o.state === 'race' && !o.finished && !inLane(o) && Math.abs(wrapD(o.s - c.s)) < 40) {
             c.gainT = time; o.loseT = time;
             const key = 1000 + Math.min(c.idx, o.idx) * 32 + Math.max(c.idx, o.idx);
             if (time - (pairT.get(key) || -99) > 8) { pairT.set(key, time); emit({ type: 'overtake', car: c, other: o, pos: c.pos }); }
@@ -595,7 +701,7 @@
       ceremony.t = 0; ceremony.podium = podium;
       for (const c of cars) {
         c.hidden = !podium.includes(c);
-        Object.assign(c, { cr: null, v: 0, slip: 0, throttle: 0.1, rpm: 0.25, gear: 1, brake: false, air: false, squash: 0, latAcc: 0, accel: 0, steer: 0, spinV: null, offroad: false });
+        Object.assign(c, { cr: null, v: 0, slip: 0, throttle: 0.1, rpm: 0.25, gear: 1, brake: false, air: false, squash: 0, latAcc: 0, accel: 0, steer: 0, spinV: null, offroad: false, pit: null, jack: 0 });
         c.vel.set(0, 0, 0);
         if (c.hidden) continue;
         c.state = 'ceremony'; c.cerRank = podium.indexOf(c); c.donut = 0; c.section = secOfS(S0 + 55);
@@ -725,8 +831,8 @@
       // "safety car in this lap": it peels off into the pit lane just before the line
       let lim = W - 1.1;
       if (sc.state === 'in') {
-        const toLine = wrapD(S0 - s);
-        if (toLine > 0 && toLine < 170) { latT = W + 3.6; lim = W + 3.8; vt = Math.min(vt, 22); }
+        const d = wrapD(s - S0);
+        if (d > PIT.entry - 150 && d < PIT.laneIn) { latT = PIT.path(Math.max(d, PIT.entry)); lim = PIT.fast; vt = Math.min(vt, 22); }
       }
       const dl = clamp((latT - sc.lat) * 0.9, -1, 1);
       sc.latV += (dl * 3 - sc.latV) * Math.min(1, dt * 3);
@@ -755,7 +861,7 @@
       sc.rpm = Math.max(0.25, Math.min(1, kmh / shifts[sc.gear]));
       sc.offroad = Math.abs(sc.lat) > W;
       sc.section = secOfS(sc.s);
-      if (sc.state === 'in' && sc.lat > W + 2.4) {
+      if (sc.state === 'in' && sc.lat > PIT.wall) {
         // gone down the pit lane: the leader now sets the pace until the line
         sc.state = 'pit'; sc.hidden = true; sc.v = 0; sc.vel.set(0, 0, 0);
         const lead2 = leaderOnTrack();

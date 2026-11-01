@@ -108,6 +108,7 @@
       phone: new THREE.BoxGeometry(0.075, 0.15, 0.012),
       pole: (() => { const g = CylC(0.012, 0.012, 1.15, 5); g.translate(0, 0.35, 0); return g; })(),
       cloth: (() => { const g = new THREE.PlaneGeometry(0.62, 0.4); g.translate(0.31, 0.72, 0); return g; })(),
+      cheer: (() => { const g = new THREE.PlaneGeometry(1.1, 0.55); g.translate(0.55, 0.645, 0); return g; })(), // same top as `cloth`
     };
     const HAND = new THREE.Vector3(0, -0.583, 0.066); // centre of the hand in arm space
     const PHONE_LOCAL = new THREE.Matrix4().makeTranslation(0, -0.6, 0.09);
@@ -136,7 +137,18 @@
       (g, w, h) => { g.fillStyle = '#ff7a00'; g.fillRect(0, 0, w, h); g.fillStyle = '#1b2533'; g.fillRect(0, h * 0.62, w, h * 0.2); },
       (g, w, h) => { g.fillStyle = '#00513f'; g.fillRect(0, 0, w, h); g.fillStyle = '#c4d600'; g.fillRect(0, h * 0.4, w, h * 0.2); },
       (g, w, h) => ['#111111', '#fdda24', '#ef3340'].forEach((c, i) => { g.fillStyle = c; g.fillRect((i * w) / 3, 0, w / 3 + 1, h); }),
+      // the Parkroyal Community School supporters' flag: bigger than the rest, so its words can be read
+      (g, w, h) => {
+        const font = '"Saira Condensed", "Arial Narrow", sans-serif';
+        g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#d7261e'; g.fillRect(0, 0, w, 16); g.fillRect(0, h - 16, w, 16);
+        NR.drawCrest(g, 14, 67, 84, 65);
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillStyle = '#111111'; g.font = `800 58px ${font}`; g.fillText('COME ON', 252, 74, 276);
+        g.fillStyle = '#d7261e'; g.font = `800 50px ${font}`; g.fillText('PARKROYAL BUS', 252, 134, 276);
+      },
     ];
+    const CHEER = FLAGS.length - 1;
 
     // Postures: hip = thigh angle forward from hanging, knee = shin bend back from the thigh, lean = torso pitch.
     const BASE = {
@@ -182,7 +194,10 @@
         hw: p.hw === 'cap' || p.hw === 'beanie' ? pick(CAPS) : pick(HAIR),
       };
       const pr = rnd();
-      if (pr < 0.06) { p.prop = 'flag'; p.fd = (rnd() * FLAGS.length) | 0; props.flags[p.fd].push(p); }
+      if (pr < 0.06) { // two in five flags are for the Parkroyal bus
+        const r = rnd();
+        p.prop = 'flag'; p.fd = r < 0.4 ? CHEER : (((r - 0.4) / 0.6) * CHEER) | 0; props.flags[p.fd].push(p);
+      }
       else if (pr < 0.14) { p.prop = 'phone'; props.phones.push(p); }
       if (posture === 'chair') { p.chair = A.chairs.length; A.chairs.push({ pos: anchor.clone(), yaw, color: pick(CHAIRS) }); }
       A.people.push(p);
@@ -248,8 +263,13 @@
       props.poleMesh = all(GEO.pole, new THREE.MeshStandardMaterial({ color: col('#2a2d31'), roughness: 0.5, metalness: 0.4 }), nFlags);
       let pj = 0;
       props.clothMeshes = props.flags.map((list, d) => {
-        const tex = canvasTex(96, 64, FLAGS[d]);
-        const m = all(GEO.cloth, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.85 }), list.length);
+        const cheer = d === CHEER;
+        const tex = cheer ? canvasTex(400, 200, FLAGS[d]) : canvasTex(96, 64, FLAGS[d]);
+        const m = all(cheer ? GEO.cheer : GEO.cloth, new THREE.MeshStandardMaterial({ map: tex, side: cheer ? THREE.FrontSide : THREE.DoubleSide, roughness: 0.85 }), list.length);
+        if (cheer) { // a mirrored copy on the back, so the words never read backwards
+          const back = tex.clone(); back.wrapS = THREE.RepeatWrapping; back.repeat.x = -1; back.needsUpdate = true;
+          m.back = all(GEO.cheer, new THREE.MeshStandardMaterial({ map: back, side: THREE.BackSide, roughness: 0.85 }), list.length);
+        }
         list.forEach((p, j) => { p.fj = j; p.pj = pj++; });
         return m;
       });
@@ -347,7 +367,9 @@
       _q.setFromEuler(_e);
       _o.compose(_h, _q, _s.set(p.s, p.s, p.s));
       props.poleMesh.setMatrixAt(p.pj, _o);
-      props.clothMeshes[p.fd].setMatrixAt(p.fj, _o);
+      const cm = props.clothMeshes[p.fd];
+      cm.setMatrixAt(p.fj, _o);
+      if (cm.back) cm.back.setMatrixAt(p.fj, _o);
       props.flagDirty = true;
     }
     function markDirty(A) {
@@ -459,7 +481,7 @@
         if (posed) markDirty(A);
       }
       if (propsTouched) {
-        if (props.flagDirty) { props.poleMesh.instanceMatrix.needsUpdate = true; props.clothMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; }); }
+        if (props.flagDirty) { props.poleMesh.instanceMatrix.needsUpdate = true; props.clothMeshes.forEach((m) => { m.instanceMatrix.needsUpdate = true; if (m.back) m.back.instanceMatrix.needsUpdate = true; }); }
         if (props.phoneDirty) props.phoneMesh.instanceMatrix.needsUpdate = true;
         props.flagDirty = props.phoneDirty = false;
       }
@@ -657,7 +679,7 @@
     });
 
     // ---------- start / finish complex ----------
-    const sSF = track.sOf('Start / Finish') + 120;
+    const sSF = track.S_FINISH, PIT = track.PIT;
     NR.S_FINISH = sSF;
     const standInfo = { center: new THREE.Vector3(), facing: new THREE.Vector3() };
     (function startFinish() {
@@ -738,40 +760,55 @@
         }
       });
 
-      // pit building (infield, side +1)
+      // pit building (infield, side +1), behind the pit lane: a garage opening facing each car's box
       const pits = new THREE.Group();
       const body = new THREE.Mesh(new THREE.BoxGeometry(180, 9, 16), std('#e9e7e1', { roughness: 0.7 }));
       body.position.set(0, 4.5, -8); pits.add(body);
       const glass = new THREE.Mesh(new THREE.BoxGeometry(178, 3, 0.3), new THREE.MeshPhysicalMaterial({ color: col('#1b2a36'), metalness: 0.2, roughness: 0.05, clearcoat: 1 }));
       glass.position.set(0, 6.6, 0.05); pits.add(glass);
-      for (let x = -84; x <= 84; x += 8) {
-        const door = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 0.2), std('#30353a', { roughness: 0.5, metalness: 0.3 }));
-        door.position.set(x, 2.1, 0.05); pits.add(door);
-      }
+      const opening = std('#15191d', { roughness: 0.95 });
+      PIT.boxes.forEach((d) => {
+        const g = new THREE.Mesh(new THREE.BoxGeometry(11, 4.2, 0.2), opening);
+        g.position.set(d - 30, 2.1, 0.06); pits.add(g); // the building is centred 30 m past the line
+      });
       const signT = textTex('NÜRBURGRING', 1024, 128, '#0f1418', '#ffffff');
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(60, 7.5), new THREE.MeshStandardMaterial({ map: signT, emissive: col('#ffffff'), emissiveMap: signT, emissiveIntensity: 0.25 }));
       sign.position.set(0, 13.2, 0.25); pits.add(sign);
       const signBack = new THREE.Mesh(new THREE.BoxGeometry(61, 8, 0.4), std('#22282d'));
       signBack.position.set(0, 13.2, -0.2); pits.add(signBack);
       pits.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
-      alignAt(pits, sSF + 30, W + 14, 0);
+      alignAt(pits, sSF + 30, PIT.garage, 0);
       scene.add(pits);
 
-      // gantry over the line
-      const gantry = new THREE.Group();
-      const steel = std('#2b3036', { metalness: 0.6, roughness: 0.45 });
-      [-1, 1].forEach((sd) => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.6, 8, 0.6), steel); p.position.set(0, 4, sd * (W + 1.8)); gantry.add(p); });
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.6, 2 * W + 4.4), steel);
-      beam.position.set(0, 7.6, 0); gantry.add(beam);
-      const ledT = textTex('NORDSCHLEIFE', 1024, 128, '#06090c', '#ffd23f');
-      const led = new THREE.Mesh(new THREE.PlaneGeometry(2 * W + 3.6, 1.3), new THREE.MeshBasicMaterial({ map: ledT, toneMapped: false }));
-      led.position.set(-0.62, 7.6, 0); led.rotation.y = -Math.PI / 2; gantry.add(led);
-      const led2 = led.clone(); led2.position.x = 0.62; led2.rotation.y = Math.PI / 2; gantry.add(led2);
-      gantry.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+      // the sponsor's footbridge over the line: a stair tower outside the grandstand-side barrier, and a
+      // covered walkway over the track and the pit lane to the pit building, its two faces carrying the
+      // sponsor's name. Bridge space: x along the track, z across it (+z towards the grandstand).
+      const bridge = new THREE.Group();
+      const TX = W + 6.8, ZP = -PIT.garage, DY = 8.4; // tower; the walkway's pit end; its centre height (underside at 7 m, clear of the bus's flag)
+      const white = std('#e4e6e8', { roughness: 0.6 }), tint = new THREE.MeshPhysicalMaterial({ color: col('#1b2a36'), metalness: 0.2, roughness: 0.05, clearcoat: 1 });
+      const bbox = (w, h, d, x, y, z, m) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); bridge.add(b); return b; };
+      bbox(3.2, 11.5, 2.6, 0, 4.25, TX, white);         // tower, sunk into the verge
+      bbox(3.26, 6, 1.6, 0, 3.6, TX, tint);             // stairwell glazing on both faces
+      bbox(3.0, 2.8, TX - ZP, 0, DY, (TX + ZP) / 2, white); // walkway
+      bbox(3.4, 0.25, TX - ZP + 1.7, 0, DY + 1.52, (TX + ZP) / 2 + 0.85, white); // roof
+      const sponsorT = canvasTex(2048, 220, (g, w, h) => {
+        g.fillStyle = '#5c0632'; g.fillRect(0, 0, w, h);
+        g.fillStyle = '#b9b2ad'; g.fillRect(0, 10, w, 5); g.fillRect(0, h - 15, w, 5);
+        g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.font = '700 182px "Saira Condensed", "Arial Narrow", sans-serif';
+        if ('letterSpacing' in g) g.letterSpacing = '18px';
+        g.fillText('QATAR AIRWAYS', w / 2, h / 2 + 8);
+      });
+      const sponsor = new THREE.MeshStandardMaterial({ map: sponsorT, emissive: col('#ffffff'), emissiveMap: sponsorT, emissiveIntensity: 0.25, roughness: 0.5 });
+      [-1, 1].forEach((sd) => { // a panel on each face, read by the cars coming towards it
+        const p = new THREE.Mesh(new THREE.PlaneGeometry(2 * TX - 2.6, 2.5), sponsor);
+        p.position.set(sd * 1.52, DY, 0); p.rotation.y = sd * Math.PI / 2; bridge.add(p);
+      });
+      bridge.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
       track.frame(sSF, 0, fr);
-      gantry.position.set(fr.pos.x, fr.pos.y, fr.pos.z);
-      gantry.rotation.set(0, Math.atan2(-fr.fwd.z, fr.fwd.x), 0);
-      scene.add(gantry);
+      bridge.position.set(fr.pos.x, fr.pos.y, fr.pos.z);
+      bridge.rotation.set(0, Math.atan2(-fr.fwd.z, fr.fwd.x), 0);
+      scene.add(bridge);
       // chequered line painted on the road
       const chk = canvasTex(256, 32, (g, w, h) => { for (let x = 0; x < 16; x++) for (let y = 0; y < 2; y++) { g.fillStyle = (x + y) % 2 ? '#111' : '#f4f4f0'; g.fillRect(x * 16, y * 16, 16, 16); } });
       const line = new THREE.Mesh(new THREE.PlaneGeometry(2 * W, 1.6), new THREE.MeshStandardMaterial({ map: chk, roughness: 0.7 }));

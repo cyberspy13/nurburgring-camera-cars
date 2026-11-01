@@ -40,12 +40,13 @@
     status('Rolling the GT3 field out…'); await nextFrame();
     const fx = NR.createFx(scene);
     const race = NR.createRace(track, scene, fx);
+    const pits = NR.createPits(race, track, scene);
     const cams = NR.createCameras(camera, race, scenery, track, scene);
     const replay = NR.createReplay(race, fx, track, camera);
     const cars = race.cars, TOTAL = race.TOTAL_LAPS;
     const audio = NR.createAudio(race);
     const weather = NR.createWeather({ scene, renderer, sky, terrain, road, race, fx, audio, scenery, track });
-    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather };
+    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track };
     fx.onCrash = (pos, s) => audio.impact?.(pos, s);
     fx.onBurst = (pos) => audio.firework?.(pos);
 
@@ -55,6 +56,7 @@
       for (let i = 0; i < 60 * 6; i++) race.step(1 / 60);
       race.quiet = false;
       race.render(0);
+      pits.update();
     }
     warmUp();
 
@@ -277,6 +279,12 @@
         case 'raceover':
           ceremonyIn = 3.5;
           break;
+        case 'pitIn':
+          if (c.idx === st.focus || c.pos <= 3) showBanner(`#${c.num} ${c.brand} pits`, `Pit stop · Lap ${ev.lap}`, 2);
+          break;
+        case 'pitOut':
+          if (c.idx === st.focus || c.pos <= 3) showBanner(`Stationary ${ev.stationary.toFixed(1)} s`, `#${c.num} ${c.brand} · fuel, tyres, driver${ev.repaired ? ', repairs' : ''}`, 2);
+          break;
         case 'safetyCar':
           document.body.classList.add('sc-out');
           showBanner('Safety car deployed', `Incident · ${ev.section}`, 4);
@@ -390,6 +398,7 @@
         return c.lapsDown ? `+${plural(c.lapsDown, 'lap')}` : '+' + (c.finishTime - race.winner.finishTime).toFixed(3);
       }
       if (c.state === 'crash') return 'Incident';
+      if (c.pit && c.pit.phase !== 'in') return 'In pit';
       if (c === leader) return 'Leader';
       const down = Math.floor((leader.dist - c.dist) / track.L);
       return down >= 1 ? `+${plural(down, 'lap')}` : '+' + Math.max(0, c.gap).toFixed(3);
@@ -501,7 +510,7 @@
       $('tRpm').classList.toggle('hot', c.rpm > 0.93);
       $('tPos').textContent = `P${c.pos}`;
       $('tLap').textContent = c.out ? 'Retired' : c.finished ? 'Finished' : `Lap ${c.lap}/${TOTAL}`;
-      $('tSection').textContent = c.state === 'crash' ? `Incident · ${track.sections[c.section].name}` : track.sections[c.section].name;
+      $('tSection').textContent = c.state === 'crash' ? `Incident · ${track.sections[c.section].name}` : c.pit && c.pit.phase === 'stop' ? 'Pit stop' : c.pit && c.pit.phase !== 'in' ? 'Pit lane' : track.sections[c.section].name;
       $('tCur').textContent = c.finished || c.out ? '–:––.–––' : fmtLap(race.time - c.lapStart);
       $('tLast').textContent = fmtLap(c.lastLap);
       $('tBest').textContent = fmtLap(c.bestLap);
@@ -541,6 +550,7 @@
           const sim = real * speed, n = sim > 0 ? Math.max(1, Math.ceil(sim * 60 - 0.1)) : 0, h = sim / n;
           for (let k = 0; k < n; k++) { race.step(h); replay.record(); }
           race.render(real * speed);
+          pits.update();
           fxDt = real * speed;
           celebrate(raw);
           if (ceremonyIn > 0 && (ceremonyIn -= raw) <= 0) beginCeremony();

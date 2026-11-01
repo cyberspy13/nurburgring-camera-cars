@@ -61,6 +61,8 @@
   .sc-badge { margin-left: auto; background: #ffa000; color: #1a1000; border-radius: 3px; padding: 1px 6px; font-weight: 800; letter-spacing: 0.08em; animation: pulse 1.2s infinite; }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1.02; letter-spacing: 0.01em; text-transform: uppercase; text-wrap: balance; }
   h1 em { font-style: normal; color: var(--signal); }
+  .brand-title { display: flex; align-items: center; gap: 10px; }
+  .logo { flex: none; width: 52px; height: auto; }
   .brand-meta { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: 14px; color: var(--muted); margin-top: 4px; gap: 8px; }
   .brand-meta b { color: var(--text); font-weight: 600; }
   #towerToggle { display: none; background: none; border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
@@ -250,6 +252,7 @@
   }
   @media (max-width: 560px) {
     h1 { font-size: 20px; }
+    .logo { width: 40px; }
     .brand { padding: 8px 10px; }
     .left { width: calc(100% - 196px); }
     .right { width: 140px; }
@@ -295,7 +298,19 @@
   <div class="left">
     <header class="brand panel">
       <div class="kicker"><span class="live">Live</span><span>Nordschleife · GT3</span><span class="sc-badge" id="scBadge" hidden>Safety car</span></div>
-      <h1>Camera Cars on a <em>Nürburgring</em> Track</h1>
+      <div class="brand-title">
+        <svg class="logo" viewBox="0 0 64 40" role="img" aria-label="Red school bus logo">
+          <path fill="#d7261e" d="M4 9q0-4 4-4h38q3 0 4 3l1.5 9H58q3.5 0 4 3.5l.5 6.5q0 3-3 3H5.5Q4 30 4 28.5Z"/>
+          <g fill="#dcebf7"><path d="M8 9h6v7H8zM15.5 9h6v7h-6zM23 9h6v7h-6zM30.5 9h6v7h-6zM38 9h6v7h-6z"/><path d="M45.5 9h3l1.5 7h-4.5z"/></g>
+          <path fill="#f2ead3" d="M4 19h57.6l.5 1.6H4z"/>
+          <g fill="#fff" transform="translate(27 22.6) scale(7.4 5.7)"><path d="M0 0h.16l.2.41L.05 1H0zM1 0H.84l-.2.41L.95 1H1zM.5 0l.14.4-.14.17L.36.4zM.5 .56.94 1H.06z"/></g>
+          <path fill="#ffd23f" d="M60.6 21.8h1.8v2.2h-1.8z"/>
+          <path fill="#1b1f24" d="M57.5 27.5h6v2.5h-6zM2.5 27.5h4v2.5h-4z"/>
+          <g fill="#1b1f24"><circle cx="15" cy="30" r="5.5"/><circle cx="49" cy="30" r="5.5"/></g>
+          <g fill="#9aa4ad"><circle cx="15" cy="30" r="2.2"/><circle cx="49" cy="30" r="2.2"/></g>
+        </svg>
+        <h1>Camera Cars on a <em>Nürburgring</em> Track</h1>
+      </div>
       <div class="brand-meta">
         <span><b id="lapNow" class="num">Lap 1</b> · <span id="clock" class="num">14:05:00</span></span>
         <button type="button" id="towerToggle" aria-expanded="false" aria-controls="tower">Standings</button>
@@ -430,6 +445,7 @@
 <script src="js/scenery.js"></script>
 <script src="js/models.js"></script>
 <script src="js/cars.js"></script>
+<script src="js/pits.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/replay.js"></script>
 <script src="js/cameras.js"></script>

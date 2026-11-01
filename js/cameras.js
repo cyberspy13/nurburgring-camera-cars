@@ -64,6 +64,26 @@
       snap = true;
     }
 
+    // the followed car's pit stop: from the helicopter or the cabin, cut to a TV camera across the lane
+    // from its box as it swings in, and back once it has pulled out
+    const PIT = track.PIT, tvFrame = track.newFrame();
+    let tvOn = false;
+    function pitTV(c, t) {
+      const p = c.pit;
+      if (!p || !(state.mode === 'cabin' || (state.mode === 'air' && state.air === 'heli'))) return false;
+      const box = PIT.boxes[c.idx], d = c.dist - track.L * Math.round(c.dist / track.L);
+      if (!(p.phase === 'box' || p.phase === 'stop' || (p.phase === 'go' && d < box + 12))) return false;
+      if (cabinCar) setCabinCar(null); // no cockpit in the TV shot
+      track.frame(track.S_FINISH + box + 4 + c.len * 0.6 + Math.sin(t * 0.15) * 0.6, PIT.wall + 0.3, tvFrame); // up on the pit wall
+      camera.position.copy(tvFrame.pos); camera.position.y += 3.1;
+      track.frame(track.S_FINISH + box - 0.3, PIT.box + 0.9, tvFrame);
+      camera.lookAt(tvFrame.pos.x, tvFrame.pos.y + 0.75, tvFrame.pos.z);
+      camera.fov = c.len > 6 ? 50 : 40;
+      camera.near = 0.3;
+      focusPos.copy(c.world);
+      return true;
+    }
+
     // dt is wall-clock time; rate is the race speed, so the chase smoothing keeps pace with the cars at 2x-16x
     function update(dt, t, rate) {
       const c = cars[state.focus];
@@ -75,6 +95,10 @@
         for (const o of cars) if (!o.hidden) dmin = Math.min(dmin, o.world.distanceTo(sp.center));
         sp.excite = Math.max(0, Math.min(1, 1 - dmin / 160));
       });
+
+      const tv = pitTV(c, t);
+      if (tv !== tvOn) { tvOn = tv; if (!tv) apply(); } // back to the chosen view (and its cockpit)
+      if (tv) { camera.updateProjectionMatrix(); snap = false; return focusPos; }
 
       if (state.mode === 'air' && state.air === 'heli') {
         const back = 24 * heliZoom.k, high = 13 * heliZoom.k;
@@ -184,6 +208,7 @@
     return {
       state, apply, update, release, onWheel, onDown, onMove, onUp,
       get specTarget() { return specTarget; },
+      get tv() { return tvOn; },
       setMode(m) { state.mode = m; apply(); },
       setAir(a) { state.air = a; apply(); },
       setFocus(i) { state.focus = (i + cars.length) % cars.length; apply(); },
