@@ -3,20 +3,23 @@
   'use strict';
   const NR = (window.NR = window.NR || {});
 
-  // Field of cars. Liveries are colour schemes only, no manufacturer logos.
+  // Field of cars. Liveries are colour schemes only, no manufacturer or sponsor logos. Six follow real
+  // cars: the #9 and #73 Mercedes, the #24 Corvette, the #007 Aston Martin, the #22 BMW and the Gulf
+  // Ford GT. Optional: accent3 (a third colour), mirror (one colour, or [+x side, -x side]), plates
+  // (wing endplate colour), hood (the bonnet number's place across the bonnet, -1 to 1).
   const ENTRIES = [
-    { brand: 'McLaren', model: '720S GT3', num: 59, type: 'mid', base: '#ff7a00', accent: '#1b2533', accent2: '#3fb6ff', style: 'lower' },
-    { brand: 'BMW', model: 'M4 GT3', num: 98, type: 'coupe', base: '#f4f5f6', accent: '#1c3f94', style: 'mstripes' },
-    { brand: 'Mercedes-AMG', model: 'AMG GT3', num: 4, type: 'front', base: '#c3c8cd', accent: '#00a19b', accent2: '#16181b', style: 'line' },
-    { brand: 'Audi', model: 'R8 LMS', num: 16, type: 'mid', base: '#7c8188', accent: '#c8102e', accent2: '#141414', style: 'front' },
-    { brand: 'Aston Martin', model: 'Vantage GT3', num: 7, type: 'front', base: '#00513f', accent: '#c4d600', accent2: '#0b2a22', style: 'line' },
+    { brand: 'McLaren', model: '720S GT3 EVO', num: 59, type: 'mid', base: '#ff7a00', accent: '#1b2533', accent2: '#3fb6ff', style: 'lower' },
+    { brand: 'BMW', model: 'M4 GT3', num: 22, type: 'coupe', base: '#df251c', accent: '#f5f5f5', accent2: '#141414', style: 'swoosh' },
+    { brand: 'Mercedes-AMG', model: 'GT3 EVO', num: 9, type: 'front', base: '#c4c9ce', accent: '#f5b50f', accent2: '#141517', style: 'claw', mirror: '#141517' },
+    { brand: 'Audi', model: 'R8 LMS GT3 EVO II', num: 16, type: 'mid', base: '#7c8188', accent: '#c8102e', accent2: '#141414', style: 'front' },
+    { brand: 'Aston Martin', model: 'Vantage AMR GT3 EVO', num: '007', type: 'front', base: '#0b6e62', accent: '#d4e01a', accent2: '#101113', style: 'bundle', mirror: '#d4e01a' },
     { brand: 'Porsche', model: '911 GT3 R', num: 911, type: 'rear', base: '#f7f7f5', accent: '#c8102e', accent2: '#141414', style: 'stripe' },
     { brand: 'Ferrari', model: '296 GT3', num: 71, type: 'mid', base: '#c40d0d', accent: '#ffd200', accent2: '#141414', style: 'stripe' },
-    { brand: 'Lamborghini', model: 'Huracán GT3', num: 63, type: 'mid', base: '#8fc31f', accent: '#141414', accent2: '#ffffff', style: 'lower' },
+    { brand: 'Lamborghini', model: 'Huracán GT3 EVO2', num: 63, type: 'mid', base: '#8fc31f', accent: '#141414', accent2: '#ffffff', style: 'lower' },
     { brand: 'BMW', model: 'M4 GT3', num: 99, type: 'coupe', base: '#0d2c5a', accent: '#ffffff', style: 'mstripes' },
-    { brand: 'Mercedes-AMG', model: 'AMG GT3', num: 48, type: 'front', base: '#16181b', accent: '#e10600', accent2: '#5b6168', style: 'line' },
-    { brand: 'McLaren', model: '720S GT3', num: 58, type: 'mid', base: '#3b4048', accent: '#ff7a00', accent2: '#ff7a00', style: 'stripe' },
-    { brand: 'Aston Martin', model: 'Vantage GT3', num: 27, type: 'front', base: '#c9d1d6', accent: '#00513f', accent2: '#c4d600', style: 'front' },
+    { brand: 'Mercedes-AMG', model: 'GT3 EVO', num: 73, type: 'front', base: '#f1f2f4', accent: '#2c6be2', accent2: '#15171a', accent3: '#e02a2f', style: 'splash', mirror: '#15171a', plates: '#e02a2f' },
+    { brand: 'Corvette', model: 'Z06 GT3.R', num: 24, type: 'mid', base: '#111214', accent: '#f2f2f2', style: 'vee', hood: 0.52 },
+    { brand: 'Ford', model: 'GT', num: 8, type: 'mid', base: '#6fb7e4', accent: '#f26a1f', accent2: '#f5f5f3', style: 'gulf', mirror: ['#6fb7e4', '#f26a1f'] },
     // the guest entry: a red double-decker flying a PR 4ML flag (also on its plates), a little off the GT3s' pace
     { brand: 'Bus', model: 'Double-decker', num: 13, type: 'bus', base: '#d7261e', accent: '#f2ead3', reg: 'PR 4ML', pace: 0.95 },
   ];

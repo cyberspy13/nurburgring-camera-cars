@@ -113,7 +113,7 @@
       // the box painted on the lane: an outline in team colour with the number at the front
       const L = c.len + 2.6, Wd = c.wid + 1.6;
       const markT = canvasTex(256, Math.round(256 * L / Wd), (gx, w, h) => {
-        gx.strokeStyle = c.base === '#16181b' ? c.accent : c.base; gx.lineWidth = 9; gx.strokeRect(6, 6, w - 12, h - 12);
+        gx.strokeStyle = lum(c.base) < 0.12 ? c.accent : c.base; gx.lineWidth = 9; gx.strokeRect(6, 6, w - 12, h - 12);
         gx.fillStyle = gx.strokeStyle; gx.textAlign = 'center'; gx.textBaseline = 'middle';
         // the number just ahead of the car's nose, reading from the front of the box
         const px = w / Wd; // canvas pixels per metre

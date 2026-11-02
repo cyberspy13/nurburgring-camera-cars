@@ -6,7 +6,7 @@ A live 3D race of twelve GT3 cars, plus one red double-decker bus, round a compa
 
 ## What's in it
 
-- **12 GT3 cars**: McLaren, BMW, Mercedes-AMG, Audi, Aston Martin, Porsche, Ferrari and Lamborghini, each with its own engine sound and a body shaped after the real car: its silhouette, grille and lights, flared wheel arches, swan-neck rear wing, and centre-lock wheels with brake calipers.
+- **12 GT3 cars**: McLaren, BMW, Mercedes-AMG, Audi, Aston Martin, Porsche, Ferrari, Lamborghini, Corvette and Ford, each with its own engine sound and a body shaped after the real car: its silhouette, grille and lights, flared wheel arches, swan-neck rear wing, and centre-lock wheels with brake calipers. Six wear colour schemes copied from real race cars: the #9 and #73 Mercedes-AMG GT3s, the #24 Corvette Z06 GT3.R, the #007 Aston Martin Vantage, the #22 BMW M4 and a Gulf-coloured Ford GT. Every car carries its number on the bonnet, doors and roof.
 - **A guest bus**: #13, a red double-decker in Parkroyal Community School colours, with the school's crest and name on its sides and back. It flies a PR 4ML flag (the same registration is on its plates), and some fans in the crowd wave "Come on Parkroyal bus" flags. It has a turbo-diesel straight-six, races a little off the GT3s' pace, and can be followed from every camera, including the driver's seat.
 - **A 17-lap race**: shuffled grid, slipstreaming and overtaking, tyre wear, lap times and a live timing tower.
 - **Pit stops**: every car makes one compulsory stop between laps 5 and 11, or earlier when a safety car comes out. It's a GT3 endurance stop of about 35 seconds. A ten-strong crew in team colours jacks the car up, refuels it with a fire marshal standing by, swaps the drivers, and changes all four tyres once the fuel is in, repairing any lost wing on the way. The lollipop man holds the car until the 60 km/h pit lane is clear. When the car you're following stops, the helicopter and cabin views cut to a TV camera on the pit wall.
@@ -53,4 +53,4 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/audio.js`, `js/engine-worklet.js` | Engine and effect sounds |
 | `js/main.js` | Start-up, interface and the main loop |
 
-Built with [three.js](https://threejs.org/) r128. The circuit is a shortened, stylised take on the Nordschleife, and the car liveries are generic team colours, not official designs. The Qatar Airways bridge over the start/finish line is decoration, not a real sponsorship.
+Built with [three.js](https://threejs.org/) r128. The circuit is a shortened, stylised take on the Nordschleife, and the car liveries are colour schemes only. Six follow real race cars, but none carries manufacturer or sponsor logos. The Qatar Airways bridge over the start/finish line is decoration, not a real sponsorship.

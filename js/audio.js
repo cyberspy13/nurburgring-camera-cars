@@ -54,6 +54,17 @@
       layout: 'v10', pipe: [1.11, 1.13], tail: 0.55, muff: 6200, chamber: 150, pulse: 25, intake: 640, whine: 33,
       cyl: 10, bank: 0.45, uneven: 0.07, tilt: 0.7, bright: 1.05, res: [[200, 5, 1.0], [1500, 6, 1.5]],
     },
+    // flat-plane crank: the V8 fires its banks in turn, so it shrieks rather than burbles
+    'Corvette': {
+      label: '5.5 flat-plane V8', cal: 1.35, red: 8400, turbo: 0, pops: 0.7, grit: 2.6, vol: 1.05,
+      layout: 'flat8', pipe: [1.3, 1.34], tail: 0.5, muff: 6000, chamber: 150, pulse: 28, intake: 600, whine: 34,
+      cyl: 8, bank: 0.5, uneven: 0.05, tilt: 0.8, bright: 1.05, res: [[190, 5, 1.0], [1500, 5, 1.5]],
+    },
+    'Ford': {
+      label: '5.4 V8', cal: 1.1, red: 7200, turbo: 0, pops: 0.85, grit: 2.8, vol: 1.1,
+      layout: 'cross8', pipe: [1.55, 1.66], tail: 0.7, muff: 4400, chamber: 105, pulse: 31, intake: 400, whine: 31,
+      cyl: 8, bank: 0.2, uneven: 0.4, tilt: 1.0, bright: 0.9, res: [[125, 6, 1.0], [520, 4, 1.2]],
+    },
     // the bus: a big lazy diesel, heavily silenced, with turbo whistle and no afterfire
     'Bus': {
       label: '9.0 turbo-diesel straight-six', cal: 2.05, red: 2600, turbo: 0.8, pops: 0, grit: 2.6, vol: 1.0,
@@ -77,9 +88,9 @@
 
   // Settings for one car's worklet engine; sister cars get slightly different pipes and their own randomness.
   function engineConfig(car) {
-    const p = engineOf(car), tune = 0.97 + 0.06 * (((car.num * 37) % 10) / 10);
+    const p = engineOf(car), num = Number(car.num), tune = 0.97 + 0.06 * (((num * 37) % 10) / 10);   // num may be a string, such as '007'
     return {
-      seed: (Math.imul(car.num + 1, 2654435761) >>> 0) || 1, banks: LAYOUTS[p.layout], red: p.red,
+      seed: (Math.imul(num + 1, 2654435761) >>> 0) || 1, banks: LAYOUTS[p.layout], red: p.red,
       pipe: p.pipe.map((l) => l * tune), tail: p.tail, muff: p.muff, chamber: p.chamber * tune, pulse: p.pulse,
       intake: p.intake, whine: p.whine, turbo: p.turbo, pops: p.pops, grit: p.grit, cal: p.cal || 1, gain: ENGINE_GAIN,
     };
@@ -452,7 +463,7 @@
       v.sum = gain(0.5); v.sum.connect(v.cut);
       v.lp = filt('lowpass', 3000, 0.7); v.lp.connect(v.sum);
       let into = v.lp;
-      const tune = 0.96 + 0.08 * (((car.num * 37) % 10) / 10); // sister cars sound slightly different
+      const tune = 0.96 + 0.08 * (((Number(car.num) * 37) % 10) / 10); // sister cars sound slightly different
       p.res.forEach(([f, db, q]) => { const pk = filt('peaking', f * tune, q, db); pk.connect(into); into = pk; });
       const shaper = node(ctx.createWaveShaper()); shaper.curve = CURVE; shaper.oversample = '2x'; shaper.connect(into);
       v.pre = gain(0.4); v.pre.connect(shaper);

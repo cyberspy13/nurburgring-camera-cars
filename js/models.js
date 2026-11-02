@@ -15,7 +15,7 @@
   const ARCH_R = 0.425, ARCH_Y = 0.335;   // wheel arch openings: radius and centre height
   const FONT = '"Saira Condensed", "Arial Narrow", sans-serif';
 
-  // ---------- the eight GT3 models ----------
+  // ---------- the ten GT3 models ----------
   // Lengths are along +z (front), heights in metres. belt: the shoulder line where the flanks meet the
   // top; crown: the height along the centre line (below the belt where the fenders stand proud of the
   // bonnet); topP: how quickly the top falls from the centre to the shoulders. nose / tail: length and
@@ -64,7 +64,7 @@
       belt: [[2.36, 0.4], [2.24, 0.58], [1.95, 0.71], [1.44, 0.81], [0.5, 0.83], [-0.4, 0.87], [-1.26, 0.96], [-1.85, 0.98], [-2.2, 1.0], [-2.28, 0.94]],
       crown: [[2.36, 0.4], [2.24, 0.6], [1.9, 0.72], [1.2, 0.82], [0.4, 0.87], [-0.4, 0.91], [-1.6, 0.99], [-2.15, 1.02], [-2.28, 0.94]],
       cabin: { z0: 0.22, z1: -0.38, z2: -0.92, z3: -1.92, roof: 1.21, inset: 0.08, tumble: 0.22, back: 'glass' },
-      wing: { z: -2.02, y: 1.26, span: 1.78, chord: 0.34 }, doorZ: -0.5,
+      wing: { z: -2.02, y: 1.26, span: 1.78, chord: 0.34 }, doorZ: -0.5, vent: [0.44, 0.74],
       rim: ['10', '#16181b'], caliper: '#c4d600', exhaust: 'side',
     },
     Porsche: {
@@ -93,6 +93,26 @@
       cabin: { z0: 1.0, z1: 0.0, z2: -0.55, z3: -1.85, roof: 1.16, inset: 0.08, tumble: 0.24, back: 'cover', scoop: true },
       wing: { z: -1.98, y: 1.2, span: 1.8, chord: 0.34 }, doorZ: 0.22,
       rim: ['Y', '#16181b'], caliper: '#e8b400', exhaust: 'high',
+    },
+    // the Z06 GT3.R: a low wedge nose between sharp fenders, cab forward, a tall square tail
+    Corvette: {
+      layout: 'mid', zf: 2.32, zr: -2.3, axF: 1.38, axR: -1.34, track: 0.83, hw: 0.95, tumble: 0.12, flare: [0.07, 0.09],
+      nose: [0.6, 2.2], tail: [0.2, 6], topP: 1.8,
+      belt: [[2.32, 0.3], [2.15, 0.5], [1.8, 0.67], [1.38, 0.79], [0.9, 0.8], [0.2, 0.84], [-0.6, 0.93], [-1.34, 0.99], [-1.9, 1.0], [-2.3, 0.97]],
+      crown: [[2.32, 0.3], [2.15, 0.49], [1.8, 0.59], [1.3, 0.67], [0.95, 0.74], [0.2, 0.84], [-0.6, 0.95], [-1.4, 1.0], [-2.0, 1.0], [-2.3, 0.97]],
+      cabin: { z0: 0.9, z1: 0.04, z2: -0.62, z3: -1.82, roof: 1.19, inset: 0.08, tumble: 0.22, back: 'cover' },
+      wing: { z: -2.0, y: 1.24, span: 1.8, chord: 0.35 }, doorZ: 0.24,
+      rim: ['10', '#16181b'], caliper: '#c8102e', exhaust: 'centre',
+    },
+    // the Ford GT: very low and round-nosed, the front fenders standing well proud of the bonnet
+    Ford: {
+      layout: 'mid', zf: 2.32, zr: -2.32, axF: 1.4, axR: -1.31, track: 0.83, hw: 0.95, tumble: 0.1, flare: [0.07, 0.09],
+      nose: [0.55, 2.6], tail: [0.24, 5], topP: 2.6,
+      belt: [[2.32, 0.36], [2.18, 0.56], [1.9, 0.71], [1.4, 0.81], [0.9, 0.78], [0.2, 0.78], [-0.6, 0.86], [-1.31, 0.92], [-1.9, 0.94], [-2.32, 0.9]],
+      crown: [[2.32, 0.36], [2.18, 0.53], [1.9, 0.6], [1.3, 0.66], [0.85, 0.72], [0.2, 0.78], [-0.6, 0.88], [-1.4, 0.93], [-2.0, 0.94], [-2.32, 0.9]],
+      cabin: { z0: 0.8, z1: -0.04, z2: -0.6, z3: -1.85, roof: 1.13, inset: 0.08, tumble: 0.2, back: 'cover' },
+      wing: { z: -2.02, y: 1.2, span: 1.84, chord: 0.36 }, doorZ: 0.18,
+      rim: ['10', '#c4c8cd'], caliper: '#c8102e', exhaust: 'centre',
     },
   };
 
@@ -432,7 +452,7 @@
   }
 
   // Brand faces: fascia (grilles, intakes, lamp housings), lamps (glowing), rear fascia and tail lamps.
-  const LAMP = '#fffaf0', LENS = '#c9ced4', RED = '#ff2a22', RED_DIM = '#6a0a08';
+  const LAMP = '#fffaf0', LENS = '#c9ced4', RED = '#ff2a22', RED_DIM = '#6a0a08', AMBER = '#ffd21f';
   const FACES = {
     McLaren: {
       face(P) {
@@ -446,14 +466,15 @@
     BMW: {
       face(P) {
         const kid = [[0.04, 0.6], [0.3, 0.62], [0.33, 0.56], [0.34, 0.24], [0.3, 0.17], [0.05, 0.17], [0.03, 0.24]];
-        P.pair(kid, DARK); P.slats(kid, 'v', 0.035, '#3a3f45', 3, true); P.edge(kid, '#5d636b', 4, true);
+        P.pair(kid, DARK); P.slats(kid, 'h', 0.04, '#2c3036', 3, true); P.edge(kid, '#5d636b', 4, true);
         P.pair([[0.5, 0.33], [0.88, 0.38], [0.92, 0.16], [0.52, 0.15]], P.mesh);
         P.pair([[0.4, 0.6], [0.88, 0.66], [0.93, 0.56], [0.44, 0.52]], DARK);
       },
+      // the yellow daytime-running-light hooks of the M4 GT3
       lamps(P) {
-        P.pair([[0.45, 0.59], [0.86, 0.645], [0.88, 0.628], [0.47, 0.574]], LAMP);
-        P.pair([[0.5, 0.57], [0.53, 0.57], [0.53, 0.53], [0.5, 0.53]], LAMP);
-        P.ell(0.62, 0.56, 0.042, 0.026, LENS, true); P.ell(0.76, 0.58, 0.042, 0.026, LENS, true);
+        P.pair([[0.45, 0.59], [0.86, 0.645], [0.88, 0.628], [0.47, 0.574]], AMBER);
+        P.pair([[0.45, 0.59], [0.47, 0.59], [0.53, 0.53], [0.51, 0.53]], AMBER);
+        P.ell(0.64, 0.585, 0.042, 0.026, LENS, true); P.ell(0.77, 0.6, 0.042, 0.026, LENS, true);
       },
       rear(P) { P.pair([[0.55, 0.56], [0.9, 0.58], [0.92, 0.42], [0.58, 0.42]], P.mesh); },
       tail(P) {
@@ -490,9 +511,13 @@
       face(P) {
         const gr = [[-0.5, 0.46], [0.5, 0.46], [0.62, 0.34], [0.56, 0.15], [-0.56, 0.15], [-0.62, 0.34]];
         P.one(gr, DARK); P.slats(gr, 'h', 0.045, '#3b4046', 4, false); P.edge(gr, '#6d737a', 3, false);
-        P.pair([[0.56, 0.55], [0.9, 0.62], [0.94, 0.55], [0.64, 0.49]], DARK);
+        P.pair([[0.56, 0.56], [0.74, 0.62], [0.9, 0.62], [0.95, 0.55], [0.9, 0.49], [0.64, 0.48]], DARK);
       },
-      lamps(P) { P.pair([[0.6, 0.535], [0.88, 0.595], [0.9, 0.58], [0.63, 0.522]], LAMP); P.ell(0.72, 0.535, 0.036, 0.02, LENS, true); P.ell(0.82, 0.555, 0.036, 0.02, LENS, true); },
+      // big oval clusters, each with two round projectors
+      lamps(P) {
+        P.pair([[0.62, 0.6], [0.88, 0.605], [0.89, 0.595], [0.63, 0.588]], LAMP);
+        P.ell(0.7, 0.54, 0.05, 0.035, LENS, true); P.ell(0.83, 0.55, 0.05, 0.035, LENS, true);
+      },
       rear(P) { P.pair([[0.5, 0.56], [0.88, 0.58], [0.9, 0.42], [0.52, 0.42]], P.mesh); },
       tail(P) { P.pair([[0.28, 0.875], [0.95, 0.875], [0.95, 0.83], [0.28, 0.845]], RED); },
     },
@@ -537,6 +562,41 @@
         P.pair([[0.69, 0.72], [0.72, 0.72], [0.74, 0.67], [0.71, 0.67]], RED);
       },
     },
+    Corvette: {
+      // a wide centre intake and two outboard ones, all edged in light grey, and slim swept-back lamps
+      face(P) {
+        const mid = [[-0.4, 0.36], [0.4, 0.36], [0.5, 0.15], [-0.5, 0.15]], side = [[0.58, 0.4], [0.9, 0.44], [0.93, 0.15], [0.64, 0.15]];
+        P.one(mid, P.mesh); P.edge(mid, '#d8dadc', 5, false);
+        P.pair(side, P.mesh); P.edge([[0.58, 0.4], [0.64, 0.15], [0.93, 0.15]], '#d8dadc', 5, true);
+        P.pair([[0.5, 0.52], [0.68, 0.58], [0.92, 0.62], [0.95, 0.56], [0.66, 0.5], [0.54, 0.47]], DARK);
+      },
+      lamps(P) {
+        P.pair([[0.55, 0.51], [0.68, 0.565], [0.9, 0.605], [0.91, 0.59], [0.68, 0.55], [0.57, 0.5]], LAMP);
+        P.ell(0.76, 0.565, 0.03, 0.018, LENS, true); P.ell(0.85, 0.58, 0.03, 0.018, LENS, true);
+      },
+      rear(P) { P.one([[-0.8, 0.7], [0.8, 0.7], [0.84, 0.42], [-0.84, 0.42]], P.mesh); },
+      tail(P) {
+        P.pair([[0.46, 0.86], [0.94, 0.85], [0.94, 0.79], [0.66, 0.8], [0.56, 0.76], [0.46, 0.8]], RED_DIM);
+        P.pair([[0.48, 0.845], [0.92, 0.835], [0.92, 0.805], [0.65, 0.815], [0.56, 0.785], [0.48, 0.815]], RED);
+      },
+    },
+    Ford: {
+      // a wide, low grille with two LED bars above it, big headlamps on the corners and round fog lamps
+      face(P) {
+        const gr = [[-0.6, 0.38], [0.6, 0.38], [0.63, 0.17], [-0.63, 0.17]];
+        P.one(gr, DARK); P.slats(gr, 'v', 0.075, '#30353b', 5, false);
+        P.pair([[0.08, 0.475], [0.36, 0.475], [0.36, 0.42], [0.08, 0.42]], DARK);
+        P.pair([[0.42, 0.6], [0.62, 0.65], [0.84, 0.62], [0.9, 0.55], [0.7, 0.5], [0.46, 0.52]], DARK);
+        P.ell(0.76, 0.28, 0.075, 0.065, DARK, true);
+      },
+      lamps(P) {
+        P.ell(0.57, 0.57, 0.055, 0.04, LAMP, true); P.ell(0.73, 0.575, 0.055, 0.04, LAMP, true);
+        P.pair([[0.1, 0.465], [0.34, 0.465], [0.34, 0.43], [0.1, 0.43]], LAMP);
+        P.ell(0.76, 0.28, 0.045, 0.04, LAMP, true);
+      },
+      rear(P) { P.one([[-0.82, 0.66], [0.82, 0.66], [0.86, 0.42], [-0.86, 0.42]], P.mesh); },
+      tail(P) { [0.62, 0.8].forEach((x) => { P.ell(x, 0.8, 0.075, 0.06, RED_DIM, true); P.ell(x, 0.8, 0.055, 0.045, RED, true); }); },
+    },
   };
 
   const faceCache = {};
@@ -557,7 +617,9 @@
   // ---------- liveries ----------
   // Painted in three bands of one canvas: the top view, then the +x and -x sides (each laid out so its
   // lettering reads the right way round). Styles paint by height on the flanks and by fraction of the
-  // width on top; the same top pattern carries on over the roof.
+  // width on top; the same top pattern carries on over the roof. Both get a last argument o: the model's
+  // spec S and the entry e, plus sd (which side) for side(), and roof (painting the glasshouse's roof
+  // panel rather than the body) for top().
   const poly = (g, pts, X, Y, fill) => { g.beginPath(); pts.forEach(([z, y], i) => (i ? g.lineTo(X(z), Y(y)) : g.moveTo(X(z), Y(y)))); g.closePath(); g.fillStyle = fill; g.fill(); };
   const band = (g, Y, y0, y1, fill) => { g.fillStyle = fill; g.fillRect(0, Y(y1), 4096, Y(y0) - Y(y1)); };
   const stripe = (g, T, f0, f1, fill) => { g.fillStyle = fill; g.fillRect(0, Math.min(T(f0), T(f1)), 4096, Math.abs(T(f0) - T(f1))); };
@@ -592,6 +654,104 @@
       side(g, X, Y, A, B) { band(g, Y, 0.42, 0.5, A); band(g, Y, 0, 0.25, B); },
       top(g, X, T, A) { stripe(g, T, 0.08, 0.2, A); stripe(g, T, -0.2, -0.08, A); },
     },
+    // silver, with a black bonnet, spine and roof, and yellow claw marks either side of the bonnet
+    claw: {
+      side(g, X, Y, A, B) {
+        band(g, Y, 0, 0.3, B);
+        poly(g, [[2.6, 0.2], [2.6, 0.47], [2.05, 0.5], [1.85, 0.2]], X, Y, A);
+        poly(g, [[1.85, 0.3], [1.85, 0.4], [-1.5, 0.4], [-1.75, 0.3]], X, Y, A);
+        poly(g, [[0.35, 0.86], [0.05, 0.86], [-1.05, 0.4], [-0.75, 0.4]], X, Y, B);
+      },
+      top(g, X, T, A, B, o) {
+        if (o.roof) {
+          stripe(g, T, -1.1, 1.1, B);
+          [1, -1].forEach((s) => poly(g, [[-2.6, s * 0.42], [o.S.cabin.z2 + 0.22, s * 0.42], [o.S.cabin.z2 + 0.36, s * 1.1], [-2.6, s * 1.1]], X, T, A));
+          return;
+        }
+        poly(g, [[-2.6, 0.48], [0.2, 0.48], [1.5, 0.52], [2.1, 0.6], [2.6, 0.75], [2.6, -0.75], [2.1, -0.6], [1.5, -0.52], [0.2, -0.48], [-2.6, -0.48]], X, T, B);
+        [1, -1].forEach((s) => {
+          poly(g, [[0.3, s * 0.97], [0.58, s * 0.97], [1.32, s * 0.5], [1.08, s * 0.5]], X, T, A);
+          poly(g, [[0.82, s * 0.97], [1.0, s * 0.97], [1.62, s * 0.56], [1.46, s * 0.56]], X, T, A);
+        });
+      },
+    },
+    // a bundle of stripes down the middle, from nose to tail over the roof
+    bundle: {
+      side(g, X, Y, A, B) { band(g, Y, 0, 0.26, B); band(g, Y, 0.26, 0.285, A); },
+      top(g, X, T, A) {
+        stripe(g, T, -0.13, 0.13, A);
+        [0.18, 0.26, 0.34].forEach((f) => { stripe(g, T, f, f + 0.04, A); stripe(g, T, -f - 0.04, -f, A); });
+      },
+    },
+    // black, a white chevron and shield on the bonnet, white flashes on the haunches and the roof
+    vee: {
+      side(g, X, Y, A) {
+        poly(g, [[-0.3, 1.0], [-0.12, 1.0], [-0.92, 0.42], [-1.1, 0.42]], X, Y, A);
+        poly(g, [[-0.62, 1.0], [-0.52, 1.0], [-1.22, 0.5], [-1.32, 0.5]], X, Y, A);
+      },
+      top(g, X, T, A, B, o) {
+        if (o.roof) {
+          const z = o.S.cabin.z2 + 0.08;
+          poly(g, [[z, 1.1], [z + 0.24, 0], [z, -1.1], [z - 0.12, -1.1], [z + 0.12, 0], [z - 0.12, 1.1]], X, T, A);
+          return;
+        }
+        const a = o.S.axF + 0.33;   // just ahead of the bonnet vent
+        poly(g, [[a, 0.3], [a + 0.13, 0.02], [a, -0.3], [a + 0.06, -0.3], [a + 0.19, 0.02], [a + 0.06, 0.3]], X, T, A);
+        poly(g, [[a + 0.12, 0.3], [a + 0.25, 0.02], [a + 0.12, -0.3], [a + 0.48, -0.3], [a + 0.55, 0], [a + 0.48, 0.3]], X, T, A);
+      },
+    },
+    // Gulf: powder blue on the right, orange on the left, a white wedge between them over the bonnet and roof
+    gulf: {
+      side(g, X, Y, A, B, o) {
+        if (o.sd > 0) band(g, Y, 0, 1.4, A);
+        poly(g, [[1.05, 0.86], [0.88, 0.86], [0.78, 0.36], [0.8, 0.2], [-1.6, 0.2], [-1.75, 0.34], [0.92, 0.34], [0.94, 0.5]], X, Y, B);
+        poly(g, [[2.6, 0.62], [2.38, 0.62], [1.95, 0.3], [2.2, 0.3]], X, Y, B);
+      },
+      flank: (sd, A, paint) => (sd > 0 ? A : paint),
+      top(g, X, T, A, B, o) {
+        poly(g, [[2.6, -0.06], [0.7, -0.58], [-2.6, -0.62], [-2.6, 0.48], [0.7, 0.4], [2.6, 0.1]], X, T, B);
+        poly(g, [[2.6, 0.1], [0.7, 0.4], [-2.6, 0.48], [-2.6, 1.1], [2.6, 1.1]], X, T, A);
+        poly(g, [[2.6, 0.1], [0.7, 0.4], [-2.6, 0.48], [-2.6, 0.43], [0.7, 0.35], [2.6, 0.06]], X, T, o.e.base); // a blue pinstripe
+      },
+    },
+    // white, a black bonnet and roof front, blue speed slashes and a red flash on the roof
+    splash: {
+      side(g, X, Y, A, B) {
+        band(g, Y, 0, 0.28, B);
+        for (let k = 0; k < 3; k++) { const z = -1.0 - k * 0.22; poly(g, [[z, 0.6], [z + 0.12, 0.6], [z - 0.16, 1.0], [z - 0.28, 1.0]], X, Y, A); }
+        [0, 1].forEach((k) => { const z = 2.5 - k * 0.2; poly(g, [[z, 0.28], [z + 0.1, 0.28], [z - 0.18, 0.56], [z - 0.28, 0.56]], X, Y, A); });
+      },
+      top(g, X, T, A, B, o) {
+        const C = o.S.cabin;
+        if (o.roof) {
+          const m = (C.z1 + C.z2) / 2;
+          const R = o.e.accent3 || A;
+          poly(g, [[m, 1.1], [3, 1.1], [3, -1.1], [m, -1.1]], X, T, B);
+          poly(g, [[C.z1 - 0.09, 1.1], [3, 1.1], [3, -1.1], [C.z1 - 0.09, -1.1]], X, T, R);
+          poly(g, [[C.z1, -0.62], [C.z1, -0.95], [m - 0.12, -1.1], [m - 0.12, -0.8]], X, T, R);
+          return;
+        }
+        poly(g, [[C.z0 - 0.1, 0.62], [1.45, 0.62], [1.9, 0.5], [2.08, 0.3], [2.08, -0.3], [1.9, -0.5], [1.45, -0.62], [C.z0 - 0.1, -0.62]], X, T, B);
+        for (let k = 0; k < 4; k++) {
+          const z = 1.75 - k * 0.2;
+          poly(g, [[z, -0.15], [z + 0.08, -0.15], [z - 0.42, 0.95], [z - 0.5, 0.95]], X, T, A);
+        }
+        [0, 1].forEach((k) => { const z = 2.35 - k * 0.16; poly(g, [[z, -0.62], [z + 0.07, -0.62], [z - 0.12, -1.05], [z - 0.19, -1.05]], X, T, A); });
+      },
+    },
+    // red, with white swooshes up the front fenders and down the doors, and a black bonnet centre
+    swoosh: {
+      side(g, X, Y, A) {
+        poly(g, [[2.6, 0.4], [2.6, 0.56], [0.55, 0.9], [0.35, 0.9], [1.7, 0.58]], X, Y, A);
+        poly(g, [[0.32, 0.93], [0.1, 0.93], [-0.18, 0.4], [-0.16, 0.2], [-1.65, 0.2], [-1.8, 0.32], [0.0, 0.32], [0.08, 0.42]], X, Y, A);
+        poly(g, [[-0.3, 0.95], [-0.42, 0.95], [-1.3, 0.42], [-1.18, 0.42]], X, Y, A);
+      },
+      top(g, X, T, A, B, o) {
+        if (o.roof) return;
+        [1, -1].forEach((s) => poly(g, [[0.45, s * 0.52], [0.45, s * 0.68], [2.45, s * 1.05], [2.45, s * 0.82]], X, T, A));
+        poly(g, [[0.4, 0.44], [1.55, 0.18], [1.55, -0.18], [0.4, -0.44]], X, T, B);
+      },
+    },
   };
   const styleOf = (e) => STYLES[e.style] || STYLES.stripe;
 
@@ -616,7 +776,7 @@
       g.fillStyle = e.base; g.fillRect(0, 0, 1024, 768);
       // top view
       g.save(); g.beginPath(); g.rect(0, 0, 1024, 256); g.clip();
-      st.top(g, AX, ROW_TOP, A, B);
+      st.top(g, AX, ROW_TOP, A, B, { S, e });
       const dark = 'rgba(8,9,11,0.92)', line = 'rgba(0,0,0,0.38)';
       const slats = (z0, z1, f0, f1, n) => {
         zrect(g, AX, ROW_TOP, z0, z1, f0, f1, dark);
@@ -627,20 +787,27 @@
       if (!e.road) {
         // louvres over the front wheels, a bonnet vent, and on the front-engined cars a pair more
         [1, -1].forEach((s) => slats(S.axF - 0.22, S.axF + 0.24, s * 0.58, s * 0.88, 7));
-        if (S.layout === 'front') [1, -1].forEach((s) => slats(C.z0 + 0.32, C.z0 + 0.78, s * 0.12, s * 0.4, 6));
+        const vent = S.vent || [0.12, 0.4];   // across the bonnet, as a fraction of its half-width
+        if (S.layout === 'front') [1, -1].forEach((s) => slats(C.z0 + 0.32, C.z0 + 0.78, s * vent[0], s * vent[1], 6));
         else slats(S.axF - 0.12, S.axF + 0.3, -0.3, 0.3, 6);
       }
       // bonnet shut line and pins
       g.strokeStyle = line; g.lineWidth = 2;
       g.strokeRect(AX(S.layout === 'front' ? C.z0 + 0.06 : S.axF - 0.32), ROW_TOP(0.62), AX(S.zf - 0.12) - AX(S.layout === 'front' ? C.z0 + 0.06 : S.axF - 0.32), ROW_TOP(-0.62) - ROW_TOP(0.62));
       [0.5, -0.5].forEach((f) => { g.fillStyle = '#1a1c1f'; g.beginPath(); g.arc(AX(S.zf - 0.3), ROW_TOP(f), 5, 0, Math.PI * 2); g.fill(); });
+      // the bonnet number, read from in front of the car: between the vents on the front-engined cars,
+      // ahead of the bonnet vent on the others (e.hood moves it across the bonnet)
+      if (!e.sc && !e.road) {
+        const hz = S.layout === 'front' ? S.axF - 0.2 : S.axF + 0.48;
+        numberPanel(g, AX(hz), ROW_TOP(e.hood || 0), 0.4 * 122, 0.26 * 204.8, e.num, -Math.PI / 2);
+      }
       g.restore();
 
       // the two sides
       [1, -1].forEach((sd) => {
         const X = sd > 0 ? (z) => 1024 - AX(z) : AX, Y = (y) => ROW_SIDE(sd, y);
         g.save(); g.beginPath(); g.rect(0, sd > 0 ? 256 : 512, 1024, 256); g.clip();
-        st.side(g, X, Y, A, B);
+        st.side(g, X, Y, A, B, { S, e, sd });
         band(g, Y, 0, 0.19, '#121416');
         // door shut lines
         const d0 = S.doorZ + 0.62, d1 = S.doorZ - 0.6;
@@ -690,20 +857,22 @@
       const roofBack = C.back === 'glass' ? C.z2 + 0.03 : C.z3;
       g.save(); g.beginPath(); g.rect(U(roofBack), V(0.75), U(C.z1 - 0.02) - U(roofBack), V(0.25) - V(0.75)); g.clip();
       g.fillStyle = paint; g.fillRect(0, 0, w, h);
-      st.top(g, U, (f) => V(0.5 + 0.25 * f), A, B);
+      st.top(g, U, (f) => V(0.5 + 0.25 * f), A, B, { S, e, roof: true });
       g.restore();
       if (C.back === 'cover') {
         rect(C.z2 - 0.26, C.z2 + 0.02, 0.27, 0.73, '#0b1016');     // the small rear window
         g.fillStyle = 'rgba(8,9,11,0.9)';
         for (let z = C.z3 + 0.12; z < C.z2 - 0.4; z += 0.07) g.fillRect(U(z), V(0.66), U(z + 0.035) - U(z), V(0.34) - V(0.66));
       }
-      // flanks: body colour along the waist, behind the side window and up the A-pillars
-      rect(C.z3, C.z0, 0, 0.03, paint); rect(C.z3, C.z0, 0.97, 1, paint);
+      // flanks: body colour along the waist, behind the side window and up the A-pillars (a style's
+      // flank() can colour each side to match its flanks)
       const zq = C.back === 'glass' ? C.z2 - 0.32 : C.z2 - 0.05;
-      [[0, 0.25, 1], [1, 0.75, -1]].forEach(([vb, vt, s]) => {
+      [[0, 0.25, 1, -1], [1, 0.75, -1, 1]].forEach(([vb, vt, s, sd]) => {
+        const fl = st.flank ? st.flank(sd, A, paint) : paint;
+        rect(C.z3, C.z0, vb ? 0.97 : 0, vb ? 1 : 0.03, fl);
         g.beginPath(); g.moveTo(U(C.z3 - 0.05), V(vb)); g.lineTo(U(C.z3 - 0.05), V(vt)); g.lineTo(U(C.z2 + 0.06), V(vt));
-        g.lineTo(U(zq), V(vb + s * 0.03)); g.closePath(); g.fillStyle = paint; g.fill();
-        rect(C.z1 - 0.04, C.z0 + 0.05, vt - 0.02, vt + 0.02, paint);
+        g.lineTo(U(zq), V(vb + s * 0.03)); g.closePath(); g.fillStyle = fl; g.fill();
+        rect(C.z1 - 0.04, C.z0 + 0.05, vt - 0.02, vt + 0.02, fl);
       });
       // windscreen banner, read from the front
       const b0 = C.z1 - 0.01, b1 = C.z1 + 0.2 * (C.z0 - C.z1);
@@ -806,8 +975,9 @@
   }
 
   // ---------- aero: wing, splitter, canards, skirts, diffuser ----------
+  // the wing and pylons, and separately its two endplates (painted on some cars)
   function wingGeo(S, F) {
-    const W = S.wing, c = W.chord, parts = [];
+    const W = S.wing, c = W.chord, parts = [], plates = [];
     // inverted cambered aerofoil, trailing edge up
     const N = 14, up = [], lo = [];
     for (let i = 0; i <= N; i++) {
@@ -824,7 +994,7 @@
     const teZ = W.z - (c / 2) * Math.cos(aoa), teY = W.y + (c / 2) * Math.sin(aoa);
     parts.push({ geo: new THREE.BoxGeometry(W.span, 0.03, 0.006), m: mat4(0, teY + 0.012, teZ + 0.004) });   // gurney flap
     [1, -1].forEach((sd) => {
-      parts.push({ geo: sidePlate([[W.z + c / 2 + 0.05, W.y - 0.07], [W.z + c / 2 + 0.03, W.y + 0.05], [W.z - c / 2 - 0.05, W.y + 0.12], [W.z - c / 2 - 0.07, W.y - 0.12], [W.z, W.y - 0.13]], 0.012, sd * (W.span / 2 + 0.006)) });
+      plates.push({ geo: sidePlate([[W.z + c / 2 + 0.05, W.y - 0.07], [W.z + c / 2 + 0.03, W.y + 0.05], [W.z - c / 2 - 0.05, W.y + 0.12], [W.z - c / 2 - 0.07, W.y - 0.12], [W.z, W.y - 0.13]], 0.012, sd * (W.span / 2 + 0.006)) });
       // swan-neck pylon from the deck up, over and down onto the wing
       const zb = W.z + 0.32, deck = F.topY(zb, 0.32) - 0.03;
       const curvePts = new THREE.CubicBezierCurve(new THREE.Vector2(zb, deck), new THREE.Vector2(zb - 0.03, W.y + 0.12),
@@ -837,7 +1007,7 @@
       });
       parts.push({ geo: sidePlate(outl.concat(inl.reverse()), 0.016, sd * 0.32) });
     });
-    return mergeGeos(parts);
+    return { wing: mergeGeos(parts), plates: mergeGeos(plates) };
   }
   function splitterGeo(S, F) {
     // the nose's outline at bumper height, 3 cm wider and reaching 5 cm further forward
@@ -881,10 +1051,10 @@
     }
     return mergeGeos(parts, '#15171a');
   }
-  function mirrorGeo(S, G) {
-    const C = S.cabin, zm = C.z0 - 0.24, parts = [];
-    [1, -1].forEach((sd) => parts.push({ geo: new THREE.SphereGeometry(1, 16, 10), m: mat4(sd * (G.gb(zm) + 0.22), G.yb(zm) + 0.13, zm, 0, 0, 0, 0.1, 0.055, 0.07) }));
-    return mergeGeos(parts);
+  // the mirror housings, +x side then -x side
+  function mirrorGeos(S, G) {
+    const zm = S.cabin.z0 - 0.24;
+    return [1, -1].map((sd) => mergeGeos([{ geo: new THREE.SphereGeometry(1, 16, 10), m: mat4(sd * (G.gb(zm) + 0.22), G.yb(zm) + 0.13, zm, 0, 0, 0, 0.1, 0.055, 0.07) }]));
   }
 
   // ---------- shared materials ----------
@@ -949,7 +1119,7 @@
       geo.dFace = decalGeo(geo.decals.front, 0.005, T.face); geo.dLamp = decalGeo(geo.decals.front, 0.009, T.lamps);
       geo.dRear = decalGeo(geo.decals.rear, 0.005, T.rear); geo.dTail = decalGeo(geo.decals.rear, 0.009, T.tail);
       geo.wing = wingGeo(S, F); geo.splitter = splitterGeo(S, F);
-      geo.mirrors = mirrorGeo(S, G);
+      geo.mirrors = mirrorGeos(S, G);
     }
     const aeroKey = road ? 'aeroRoad' : 'aero';
     if (!geo[aeroKey]) geo[aeroKey] = aeroGeo(S, F, G, road);
@@ -957,9 +1127,11 @@
     const tail = decalMat({ map: T.tail, color: col('#ffffff'), emissive: col('#ff1a1a'), emissiveMap: T.tail, emissiveIntensity: 0.5, roughness: 0.3 });
     mesh(geo.dTail, tail);
     mesh(geo[aeroKey], M.carbonV, body, true);
-    const solid = new THREE.MeshPhysicalMaterial({ color: col(e.base), metalness: 0.35, roughness: 0.32, clearcoat: 1 });
-    mesh(geo.mirrors, solid, body, true);
-    const wing = mesh(geo.wing, M.aero, body, true);
+    const painted = (c) => new THREE.MeshPhysicalMaterial({ color: col(c), metalness: 0.35, roughness: 0.32, clearcoat: 1 });
+    const solid = painted(e.base), mirror = [].concat(e.mirror || e.base);   // e.mirror: one colour, or [+x, -x]
+    geo.mirrors.forEach((g, i) => { const c = mirror[i] || mirror[0]; mesh(g, c === e.base ? solid : painted(c), body, true); });
+    const wing = mesh(geo.wing.wing, M.aero, body, true);
+    mesh(geo.wing.plates, e.plates ? painted(e.plates) : M.aero, wing, true);
     const splitter = mesh(geo.splitter, M.aero, body, true);
 
     // on the roof: an aerial, and the Lamborghini's air scoop
