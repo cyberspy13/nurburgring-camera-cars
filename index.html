@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="A live 3D Nordschleife race of twelve GT3 cars and a red double-decker bus with crashes, replays, weather, night racing and engine sounds, watched from the air, the cockpit or the grandstands.">
+<meta name="description" content="A live 3D Nordschleife race of twelve GT3 cars and an open-top school bus, with banner planes, crashes, replays, weather, night racing and engine sounds, watched from the air, the cockpit or the grandstands.">
 <title>Camera Cars on a Nürburgring Track</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 4 4%27%3E%3Cpath fill=%27%23fff%27 d=%27M0 0h4v4H0z%27/%3E%3Cpath fill=%27%23111%27 d=%27M0 0h1v1H0zM2 0h1v1H2zM1 1h1v1H1zM3 1h1v1H3zM0 2h1v1H0zM2 2h1v1H2zM1 3h1v1H1zM3 3h1v1H3z%27/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -314,6 +314,9 @@
   }
   @media (max-width: 360px) {
     .focus, .tele { flex: 1 1 100%; width: auto; } /* one above the other */
+    .logo, .kicker > span:nth-child(2) { display: none; } /* the title block is only ~120 px wide */
+    h1 { font-size: 17px; }
+    .brand-meta { flex-wrap: wrap; }
   }
   /* phones on their side: a slim brand, and the car, the cameras and the speed in one row along the bottom */
   @media (max-height: 500px) and (min-width: 561px) {
@@ -462,7 +465,7 @@
   </section>
   <button type="button" class="ctrl res-pill" id="resShow" hidden>Results</button>
 
-  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span></div>
+  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp / plane</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span></div>
 
   <div class="bottom">
     <section class="focus panel" aria-label="Car you are following">
@@ -475,7 +478,7 @@
       <div class="modes" role="group" aria-label="Camera view">
         <button type="button" class="mode" data-mode="air" aria-pressed="true">
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h24M16 7v4"/><path d="M8 15c0-2.2 1.8-4 4-4h6c3.3 0 6 2.7 6 6v1H12c-2.2 0-4-1.8-4-3Z"/><path d="M24 16h4l1-4M12 22l-1 3M20 22l1 3M8 25h16"/></svg>
-          <b>Air</b><small>Helicopter · Blimp</small>
+          <b>Air</b><small>Helicopter · Blimp · Plane</small>
         </button>
         <button type="button" class="mode" data-mode="cabin" aria-pressed="false">
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="16" cy="17" r="10"/><circle cx="16" cy="17" r="2.5"/><path d="M6.5 15h7M18.5 15h7M16 19.5V27"/></svg>
@@ -494,6 +497,7 @@
         <div class="seg" role="group" aria-label="Air camera">
           <button type="button" class="ctrl" data-air="heli" aria-pressed="true">Helicopter</button>
           <button type="button" class="ctrl" data-air="blimp" aria-pressed="false">Blimp</button>
+          <button type="button" class="ctrl" data-air="plane" aria-pressed="false">Plane</button>
         </div>
         <span class="tip" id="zoomTip">Scroll to zoom</span>
       </div>
@@ -526,6 +530,8 @@
 <script src="js/world.js"></script>
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
+<script src="js/school.js"></script>
+<script src="js/pools.js"></script>
 <script src="js/models.js"></script>
 <script src="js/cars.js"></script>
 <script src="js/pits.js"></script>
@@ -534,6 +540,7 @@
 <script src="js/cameras.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/weather.js"></script>
+<script src="js/planes.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

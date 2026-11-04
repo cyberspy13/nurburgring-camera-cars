@@ -40,13 +40,16 @@
     status('Rolling the GT3 field out…'); await nextFrame();
     const fx = NR.createFx(scene);
     const race = NR.createRace(track, scene, fx);
+    const bus = race.cars.find((c) => c.type === 'bus');
+    if (bus) scenery.addRiders(bus.rig); // the pupils on its open top deck
     const pits = NR.createPits(race, track, scene);
-    const cams = NR.createCameras(camera, race, scenery, track, scene);
+    const planes = NR.createPlanes(scene);
+    const cams = NR.createCameras(camera, race, scenery, track, scene, planes);
     const replay = NR.createReplay(race, fx, track, camera);
     const cars = race.cars, TOTAL = race.TOTAL_LAPS;
     const audio = NR.createAudio(race);
     const weather = NR.createWeather({ scene, renderer, sky, terrain, road, race, fx, audio, scenery, track });
-    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track };
+    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes };
     fx.onCrash = (pos, s) => audio.impact?.(pos, s);
     fx.onBurst = (pos) => audio.firework?.(pos);
 
@@ -260,6 +263,7 @@
         case 'overtake': {
           const o = ev.other;
           if (c.idx === st.focus || o.idx === st.focus || ev.pos <= 3) showBanner(`#${c.num} ${c.brand} passes #${o.num} ${o.brand}`, `Overtake · P${ev.pos}`, 1);
+          if (c === bus) scenery.busCheer(3); // the whole top deck on its feet
           break;
         }
         case 'leaderLap':
@@ -366,13 +370,25 @@
     }
     const tf = track.newFrame();
 
+    // The banner planes circle a point just ahead of whatever is being watched: the followed car's road
+    // ahead, the far side of the road from a stand, the podium, or the replay.
+    const planeAt = new THREE.Vector3(), tfp = track.newFrame();
+    function planeTarget() {
+      if (replay.active) return planeAt.copy(replay.focus);
+      if (st.mode === 'ceremony') return planeAt.copy(race.ceremony.center);
+      if (st.mode === 'spectator') { const sp = scenery.spots[st.spot]; return planeAt.copy(track.frame(sp.s, -sp.side * 150, tfp).pos); }
+      const c = cars[st.focus];
+      return planeAt.copy(c.world).addScaledVector(c.fwd, 110);
+    }
+
+    const AIRS = ['heli', 'blimp', 'plane'];
     window.addEventListener('keydown', (e) => {
       if (e.target.closest && e.target.closest('select')) return;
       const k = e.key;
       if (k === '1') setMode('air');
       else if (k === '2') setMode('cabin');
       else if (k === '3') setMode('spectator');
-      else if (k === 'b' || k === 'B') { if (replay.active) replay.stop(); cams.setAir(st.air === 'heli' ? 'blimp' : 'heli'); syncUI(); }
+      else if (k === 'b' || k === 'B') { if (replay.active) replay.stop(); cams.setAir(AIRS[(AIRS.indexOf(st.air) + 1) % AIRS.length]); syncUI(); }
       else if (k === 'ArrowRight' || k === 'e' || k === 'E') st.mode === 'spectator' ? setSpot(st.spot + 1) : setFocus(st.focus + 1);
       else if (k === 'ArrowLeft' || k === 'q' || k === 'Q') st.mode === 'spectator' ? setSpot(st.spot - 1) : setFocus(st.focus - 1);
       else if (k === 'p' || k === 'P' || k === ' ') { e.preventDefault(); togglePause(); }
@@ -607,6 +623,7 @@
       if (replay.active) {
         rate = replay.update(paused ? 0 : real, st.calm ? 0 : 1);
         fxDt = paused ? 0 : real * rate;
+        planes.update(fxDt, planeTarget(), weather.nightK);
         focus = replay.focus;
         $('replayProg').style.transform = `scaleX(${replay.progress.toFixed(3)})`;
       } else {
@@ -620,6 +637,7 @@
           celebrate(raw);
           if (ceremonyIn > 0 && (ceremonyIn -= raw) <= 0) beginCeremony();
         }
+        planes.update(fxDt, planeTarget(), weather.nightK); // before the cameras: the plane camera rides with them
         focus = cams.update(real, now / 1000, paused ? 1 : speed);
       }
       const fall = paused ? 0 : real * (replay.active ? rate : 1);
@@ -632,7 +650,7 @@
       sky.sun.position.copy(focus).addScaledVector(NR.world.SUN_DIR, 400);
       sky.sun.target.position.copy(focus);
       sky.sun.target.updateMatrixWorld();
-      scenery.update(now / 1000, focus, cars);
+      scenery.update(now / 1000, focus, cars, weather.nightK);
       renderer.render(scene, camera);
       renderTelemetry();
       renderTower(false);

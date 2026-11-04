@@ -83,7 +83,7 @@
         lapStart: 0, lastLap: null, bestLap: null, gap: 0, cp: null, lapIdx: undefined, lap: 1,
         pos: i + 1, prevPos: i + 1, section: 0, s: 0,
         state: 'race', out: false, hidden: false, finished: false, finishTime: 0, finishRank: 0, lapsDown: 0,
-        cr: null, dmgBits: 0, yawOff: 0, rejoin: 0, smokeT: 0, outT: 0, spinV: null, gainT: -99, loseT: -99,
+        cr: null, dmgBits: 0, yawOff: 0, rejoin: 0, smokeT: 0, outT: 0, spinV: null, gainT: -99, loseT: -99, wobble: 0,
         gapAhead: 0, gapBehind: 0, graceT: 22, // the rolling start: let the pack string out before contact can spin anyone
         // the compulsory pit stop: called in at the end of lap 5 to 11; `pit` holds the stop while it's under way
         pitLap: 5 + Math.floor(rand() * 7), pit: null, pitted: false, tyreLap: 0, jack: 0,
@@ -302,8 +302,9 @@
       c.slip = c.rejoin > 0 && Math.abs(c.yawOff) > 0.25 ? 0.45 : clamp((use - 0.85) * 2, 0, 0.3);
       if (c.slip > 0.3 && (c.smokeT -= dt) <= 0) { c.smokeT = 0.06; tyreSmoke(c, 0.6); }
 
-      // mistakes: the closer to the grip limit, the likelier; the first lap, battles and worn tyres raise the odds
-      if (phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && !c.pit && time > 14 && time > c.graceT) {
+      // mistakes: the closer to the grip limit, the likelier; the first lap, battles and worn tyres raise the odds.
+      // The bus, with pupils on its open top deck, never makes one.
+      if (c.type !== 'bus' && phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && !c.pit && time > 14 && time > c.graceT) {
         const stress = clamp((use - 0.6) / 0.4, 0, 1);
         let rate = api.hazard * stress * stress * c.risk * (1 + 8 * (1 - tyre)) * (c.attack ? 3 : 1) * ((c.lapIdx || 0) < 1 ? 2 : 1);
         rate *= api.weather.risk;
@@ -426,6 +427,8 @@
     // ---------- incidents ----------
     function startCrash(c, kind, spinDir) {
       if (c.state !== 'race') return;
+      if (c.type === 'bus') { c.wobble = 1; return; } // a knock only rocks it: the pupils on top hold on
+
       track.frame(c.s + 12, 0, tf);
       const turn = Math.sign(wrapA(heading(tf.fwd) - heading(c.fr.fwd))) || 1; // which way the corner bends
       c.state = 'crash';
@@ -911,6 +914,10 @@
         if (c.air) m.root.rotateX(-clamp(c.vy * 0.012, -0.1, 0.1));
         const driving = c.state === 'race';
         m.body.rotation.z = driving ? clamp(c.latAcc * 0.0028, -0.05, 0.05) : 0;
+        if (c.wobble) { // the bus rocking side to side after a knock
+          c.wobble = Math.max(0, c.wobble - dt * 0.7);
+          m.body.rotation.z += Math.sin(time * 11) * 0.06 * c.wobble;
+        }
         m.body.rotation.x = driving ? clamp(-c.accel * 0.0025, -0.035, 0.035) : 0;
         m.body.position.y = -c.squash;
         m.blob.position.y = 0.04 - (c.y - c.roadY);

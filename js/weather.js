@@ -260,6 +260,6 @@
       glows.forEach((g) => { g.visible = lit; g.material.opacity = nightK; });
     }
 
-    return { set, update, get kind() { return state.kind; }, get night() { return state.night; } };
+    return { set, update, get kind() { return state.kind; }, get night() { return state.night; }, get nightK() { return nightK; } }; // nightK eases 0 (day) to 1 (night)
   };
 })();

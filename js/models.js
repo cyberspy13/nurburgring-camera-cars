@@ -1161,10 +1161,11 @@
   }
 
   // ---------- the bus ----------
-  // A double-decker on the same rig as the cars: the wing slot holds the roof flag (a heavy hit tears it
-  // off), the splitter slot the front bumper and plate. Everything but the red shell sits in `glass`, so
-  // the cabin view hides it and clips the shell away behind the windscreen, as it does for the cars.
-  const BUS = { len: 10.2, wid: 2.5, high: 4.3, wheelR: 0.5, axleF: 2.9, axleR: -2.3 };
+  // An open-top double-decker on the same rig as the cars: the wing slot holds the flag on the back rail,
+  // the splitter slot the front bumper and plate, the roof slot the seats on the top deck. Everything but the
+  // red paintwork sits in `glass`, so the cabin view hides it and clips the paint away behind the windscreen,
+  // as it does for the cars. The pupils on the top deck are a crowd area (scenery.js addRiders) on `deck`.
+  const BUS = { len: 10.2, wid: 2.5, deck: 2.48, top: 3.32, wheelR: 0.5, axleF: 2.9, axleR: -2.3 };
   function numberTex(e) {
     return NR.world.canvasTex(256, 200, (g, w, h) => {
       g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(w / 2, h / 2, w * 0.46, h * 0.44, 0, 0, Math.PI * 2); g.fill();
@@ -1221,7 +1222,7 @@
   function buildBusModel(e) {
     const { col } = NR.world;
     const M = sharedMats();
-    const { len: BL, wid: BW, high: H, wheelR: WR } = BUS;
+    const { len: BL, wid: BW, wheelR: WR } = BUS;
     const ZF = BL / 2, XS = BW / 2, FLOOR = 0.42;
     const root = new THREE.Group(), body = new THREE.Group(), glass = new THREE.Group();
     root.add(body); body.add(glass);
@@ -1230,14 +1231,36 @@
     const sign = (w, h, map, x, y, z, ry, parent) => { const m = add(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map, roughness: 0.5 }), x, y, z, parent || glass); m.rotation.y = ry; return m; };
 
     const paint = new THREE.MeshPhysicalMaterial({ color: col(e.base), metalness: 0.2, roughness: 0.32, clearcoat: 1, clearcoatRoughness: 0.08 });
-    const shell = box(BW, H - FLOOR, BL, 0, (H + FLOOR) / 2, 0, paint);
-    const roof = box(BW - 0.12, 0.08, BL - 0.16, 0, H + 0.04, 0, paint);
+    const DECK = BUS.deck, TOP = BUS.top;
+    const shell = box(BW, DECK - FLOOR, BL, 0, (DECK + FLOOR) / 2, 0, paint);
+    // the open top deck: waist-high panels, a cream rail along their tops, a grey floor
+    const PH = TOP - DECK, PY = (DECK + TOP) / 2;
+    [-1, 1].forEach((sd) => { box(0.06, PH, BL, sd * (XS - 0.03), PY, 0, paint); box(BW, PH, 0.06, 0, PY, sd * (ZF - 0.03), paint); });
+    box(BW - 0.12, 0.03, BL - 0.12, 0, DECK + 0.015, 0, M.carbon, glass);
+    const rail = new THREE.MeshStandardMaterial({ color: col(e.accent), roughness: 0.35, metalness: 0.3 });
+    [-1, 1].forEach((sd) => {
+      add(new THREE.CylinderGeometry(0.045, 0.045, BL, 8), rail, sd * (XS - 0.03), TOP + 0.04, 0, glass).rotation.x = Math.PI / 2;
+      add(new THREE.CylinderGeometry(0.045, 0.045, BW, 8), rail, 0, TOP + 0.04, sd * (ZF - 0.03), glass).rotation.z = Math.PI / 2;
+    });
+    // two-seat benches down both sides of the aisle, facing forward; a pupil on one seat of each in the front
+    // eight rows (the seat pan sits 0.14 behind a sitter's anchor, as the crowd's seats do)
+    const seatParts = [], riders = [];
+    for (let r = 0, z = ZF - 1.0; z > -ZF + 1.2; r++, z -= 0.82) {
+      [-1, 1].forEach((sd) => {
+        const x = sd * 0.66;
+        seatParts.push({ geo: new THREE.BoxGeometry(0.88, 0.07, 0.42), m: new THREE.Matrix4().makeTranslation(x, DECK + 0.44, z - 0.14) });
+        seatParts.push({ geo: new THREE.BoxGeometry(0.88, 0.46, 0.07), m: new THREE.Matrix4().makeTranslation(x, DECK + 0.68, z - 0.36), tint: 0.85 });
+        seatParts.push({ geo: new THREE.BoxGeometry(0.08, 0.42, 0.3), m: new THREE.Matrix4().makeTranslation(x, DECK + 0.21, z - 0.14), tint: 0.4 });
+        if (r < 8) riders.push({ pos: new THREE.Vector3(x + sd * ((r % 2) ? -0.22 : 0.22), DECK, z), yaw: 0, k: (riders.length * 0.618 + 0.11) % 1 });
+      });
+    }
+    const roof = new THREE.Mesh(NR.world.merge(seatParts), new THREE.MeshStandardMaterial({ color: col('#24324f'), vertexColors: true, roughness: 0.85 }));
+    glass.add(roof);
     const numMat = new THREE.MeshStandardMaterial({ map: numberTex(e), transparent: true, roughness: 0.4 });
-    add(new THREE.PlaneGeometry(1.5, 1.16), numMat, 0, 0.045, 0.6, roof).rotation.set(-Math.PI / 2, 0, Math.PI); // reads from behind, like the cars'
 
-    // windows on both decks, window pillars, the school's name between the decks, race numbers, wheel arches
+    // lower-deck windows and pillars, the school's name along the deck line, race numbers, wheel arches
     const school = new THREE.MeshStandardMaterial({ map: schoolSideTex(e.accent), transparent: true, roughness: 0.4 });
-    const LOW = [1.36, 2.12], UP = [2.72, 3.62], LY = (LOW[0] + LOW[1]) / 2, UY = (UP[0] + UP[1]) / 2;
+    const LOW = [1.36, 2.12], LY = (LOW[0] + LOW[1]) / 2;
     [-1, 1].forEach((sd) => {
       const x = sd * (XS + 0.012);
       // the door is on the +x side, ahead of the front axle
@@ -1245,9 +1268,7 @@
         box(0.02, LOW[1] - LOW[0], 7.9, x, LY, -0.75, M.glass, glass);
         box(0.02, LOW[1] - 0.55, 1.0, x, (LOW[1] + 0.55) / 2, 4.25, M.glass, glass);
       } else box(0.02, LOW[1] - LOW[0], 9.3, x, LY, -0.05, M.glass, glass);
-      box(0.02, UP[1] - UP[0], BL - 0.7, x, UY, 0, M.glass, glass);
       for (let z = -3.9; z < 4.6; z += 1.3) {
-        box(0.03, UP[1] - UP[0] + 0.02, 0.1, sd * (XS + 0.02), UY, z, paint);
         if (sd < 0 || z < 3.2) box(0.03, LOW[1] - LOW[0] + 0.02, 0.1, sd * (XS + 0.02), LY, z, paint);
       }
       add(new THREE.PlaneGeometry(BL - 0.4, (BL - 0.4) * 112 / 2048), school, sd * (XS + 0.016), 2.42, 0, glass).rotation.y = sd * Math.PI / 2;
@@ -1260,7 +1281,6 @@
     box(BW - 0.24, 1.3, 0.02, 0, 1.62, zf, M.glass, glass);
     sign(BW - 0.5, 0.3, signTex('NORDSCHLEIFE', 512, 64, '#141414', '#ffb300', 46), 0, 2.45, zf + 0.012, 0);
     [-1, 1].forEach((sd) => {
-      box(1.08, 0.86, 0.02, sd * 0.6, UY, zf, M.glass, glass);
       box(0.36, 0.2, 0.04, sd * 0.92, 0.72, zf, M.head, glass);
       box(0.04, 0.04, 0.55, sd * (XS - 0.06), 2.3, ZF + 0.25, M.carbon, glass);
       box(0.08, 0.4, 0.22, sd * (XS + 0.02), 2.08, ZF + 0.5, M.carbon, glass);
@@ -1269,10 +1289,11 @@
     const splitter = box(BW + 0.04, 0.26, 0.16, 0, 0.36, ZF + 0.07, M.carbon);
     sign(0.72, 0.155, signTex(e.reg, 256, 56, '#f4f4ef', '#111111', 46), 0, 0, 0.082, 0, splitter);
 
-    // rear: upper window, engine grille, lamps, bumper and the yellow plate
+    // rear: the race number on the top deck's back panel (where the helicopter sees it), engine grille,
+    // lamps, bumper and the yellow plate
     const tail = new THREE.MeshStandardMaterial({ color: col('#5a0000'), emissive: col('#ff1a1a'), emissiveIntensity: 0.5, roughness: 0.3 });
     const zr = -(ZF + 0.012);
-    box(BW - 0.5, 0.8, 0.02, 0, UY, zr, M.glass, glass);
+    add(new THREE.PlaneGeometry(0.95, 0.74), numMat, 0, PY, zr, glass).rotation.y = Math.PI;
     box(BW - 0.6, 0.5, 0.03, 0, 1.05, zr, M.carbon, glass);
     [-1, 1].forEach((sd) => box(0.2, 0.42, 0.04, sd * (XS - 0.18), 0.95, zr, tail, glass));
     box(BW + 0.04, 0.24, 0.14, 0, 0.36, -(ZF + 0.06), M.carbon, glass);
@@ -1280,16 +1301,17 @@
     const crest = new THREE.MeshStandardMaterial({ map: schoolBackTex(), transparent: true, roughness: 0.4 });
     add(new THREE.PlaneGeometry(1.6, 1.0), crest, 0, 2.0, zr - 0.012, glass).rotation.y = Math.PI;
 
-    // the roof flag on its pole, streaming backwards; the far side carries a mirrored copy so it reads both ways
+    // the flag on its pole at the back rail, high over the pupils' heads, streaming backwards; the far side
+    // carries a mirrored copy so it reads both ways
     const wing = new THREE.Group(); body.add(wing);
-    const poleZ = -ZF + 0.9;
-    add(new THREE.CylinderGeometry(0.035, 0.035, 2.0, 8), M.rim, 0, H + 1.0, poleZ, wing);
+    const poleZ = -ZF + 0.25, poleTop = DECK + 3.0;
+    add(new THREE.CylinderGeometry(0.035, 0.035, poleTop - DECK, 8), M.rim, 0, (DECK + poleTop) / 2, poleZ, wing);
     const flagGeo = new THREE.PlaneGeometry(1.5, 0.95, 12, 1);
     flagGeo.translate(0.75, 0, 0);
     const front = signTex(e.reg, 256, 160, '#ffffff', '#111111', 76, e.base);
     const back = front.clone(); back.wrapS = THREE.RepeatWrapping; back.repeat.x = -1; back.needsUpdate = true;
     [[front, THREE.FrontSide], [back, THREE.BackSide]].forEach(([map, side]) => {
-      add(flagGeo, new THREE.MeshStandardMaterial({ map, side, roughness: 0.8 }), 0, H + 1.5, poleZ, wing).rotation.y = Math.PI / 2;
+      add(flagGeo, new THREE.MeshStandardMaterial({ map, side, roughness: 0.8 }), 0, poleTop - 0.5, poleZ, wing).rotation.y = Math.PI / 2;
     });
     body.traverse((o) => { if (o.isMesh) o.castShadow = true; });
 
@@ -1315,6 +1337,7 @@
       len: BL - 0.5, wid: BW - 0.05, wheelR: WR, rearZ: BUS.axleR, nose: ZF, frame: 11, aimY: 1.9, engineZ: -ZF + 0.8,
       eye: new THREE.Vector3(0.6, 2.25, ZF - 1.0), cockpitAt: new THREE.Vector3(0.24, 1.19, ZF - 0.7), // the cars' cockpit, raised and moved forward
       flag: { geo: flagGeo, rest: flagGeo.attributes.position.array.slice(), t: 0 },
+      deck: glass, riders, // where the pupils sit, for scenery.js addRiders
     };
   }
 

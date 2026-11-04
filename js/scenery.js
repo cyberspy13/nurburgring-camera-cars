@@ -150,12 +150,14 @@
     ];
     const CHEER = FLAGS.length - 1;
 
-    // Postures: hip = thigh angle forward from hanging, knee = shin bend back from the thigh, lean = torso pitch.
+    // Postures: hip = thigh angle forward from hanging, knee = shin bend back from the thigh, lean = torso pitch,
+    // pitch = the whole body tipped forward (a swimmer lies flat).
     const BASE = {
-      stand: { hip: 0.02, knee: 0.04, lean: 0.02 },
-      seat: { hip: 1.5, knee: 1.5, lean: -0.08 },
-      chair: { hip: 1.45, knee: 1.35, lean: -0.12 },
-      ground: { hip: 2.3, knee: 1.8, lean: -0.3 }, // on the grass, knees up, leaning back on the hands
+      stand: { hip: 0.02, knee: 0.04, lean: 0.02, pitch: 0 },
+      seat: { hip: 1.5, knee: 1.5, lean: -0.08, pitch: 0 },
+      chair: { hip: 1.45, knee: 1.35, lean: -0.12, pitch: 0 },
+      ground: { hip: 2.3, knee: 1.8, lean: -0.3, pitch: 0 }, // on the grass, knees up, leaning back on the hands
+      swim: { hip: 0.04, knee: 0.12, lean: 0, pitch: 1.42 },
     };
 
     const areas = [], props = { flags: FLAGS.map(() => []), phones: [] };
@@ -163,15 +165,18 @@
     const reactions = [];
 
     function newArea(name, o) {
-      const A = Object.assign({ name, people: [], chairs: [], m: {}, center: new THREE.Vector3(), radius: 10 }, o || {});
+      const A = Object.assign({ name, people: [], chairs: [], m: {}, center: new THREE.Vector3(), radius: 10, cheerUntil: 0 }, o || {});
       areas.push(A);
       return A;
     }
 
-    // anchor: feet (or seat / chair base) position in world; yaw: facing (rotation about y; 0 faces +z)
+    // anchor: feet (or seat / chair base) position in world, or in the area's parent if it has one; yaw: facing
+    // (rotation about y; 0 faces +z). o: noStand, lookDown, and for the school and the pools: scale (children),
+    // cols (fixed clothing colours: top, bottom, sleeve, thigh, shin, hw), hw (the headwear to pick from),
+    // prop ('cheer' for a Parkroyal flag, null for none) and swim (a lap round an oval: c, a, b, yaw, w).
     function addPerson(A, anchor, yaw, posture, o) {
       o = o || {};
-      const s = 0.9 + rnd() * 0.17;
+      const s = o.scale || 0.9 + rnd() * 0.17;
       const fx = Math.sin(yaw), fz = Math.cos(yaw);
       const at = (fwd, up) => new THREE.Vector3(anchor.x + fx * fwd, anchor.y + up, anchor.z + fz * fwd);
       const p = {
@@ -185,16 +190,19 @@
       if (posture === 'stand') p.seat = p.up = at(0, 0.93 * s);
       else if (posture === 'seat') { p.seat = at(-0.15, 0.52); p.up = at(0.2, 0.93 * s); }
       else if (posture === 'chair') { p.seat = at(-0.04, 0.53); p.up = at(0.34, 0.93 * s); }
+      else if (posture === 'swim') { p.seat = p.up = anchor.clone(); p.swim = Object.assign({ th: rnd() * 6.283 }, o.swim); p.noStand = true; }
       else { p.seat = at(0, 0.13); p.up = at(0.15, 0.93 * s); }
       p.hpIdle = o.lookDown || 0.04;
       const r = rnd();
-      p.hw = r < 0.36 ? 'hair' : r < 0.52 ? 'hairLong' : r < 0.86 ? 'cap' : 'beanie';
-      p.cols = {
+      p.hw = o.hw ? pick(o.hw) : r < 0.36 ? 'hair' : r < 0.52 ? 'hairLong' : r < 0.86 ? 'cap' : 'beanie';
+      p.cols = Object.assign({
         skin: pick(SKIN), top: pick(TOPS), bottom: pick(BOTTOMS),
         hw: p.hw === 'cap' || p.hw === 'beanie' ? pick(CAPS) : pick(HAIR),
-      };
+      }, o.cols);
       const pr = rnd();
-      if (pr < 0.06) { // two in five flags are for the Parkroyal bus
+      if (o.prop === 'cheer') { p.prop = 'flag'; p.fd = CHEER; props.flags[CHEER].push(p); }
+      else if (o.prop === null) { /* nothing in their hands */ }
+      else if (pr < 0.06) { // two in five flags are for the Parkroyal bus
         const r = rnd();
         p.prop = 'flag'; p.fd = r < 0.4 ? CHEER : (((r - 0.4) / 0.6) * CHEER) | 0; props.flags[p.fd].push(p);
       }
@@ -205,44 +213,46 @@
     }
 
     // ----- build the instanced meshes once every crowd area is filled -----
-    const instMesh = (geo, material, count, center, radius, cast) => {
+    const instMesh = (geo, material, count, center, radius, cast, parent) => {
       const g = geo.clone();
       g.boundingSphere = new THREE.Sphere(center.clone(), radius);
       const m = new THREE.InstancedMesh(g, material, count);
       m.castShadow = !!cast; m.receiveShadow = true;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      scene.add(m);
+      (parent || scene).add(m);
       return m;
     };
+    // Builds the meshes for every area that hasn't got them yet, so an area added later (the pupils on the
+    // bus, once the race has built it) only needs another call.
     function finish() {
       const c = new THREE.Color();
-      areas.forEach((A) => {
+      const fresh = areas.filter((A) => A.people.length && !A.m.torso);
+      fresh.forEach((A) => {
         const n = A.people.length;
-        if (!n) return;
         const box = new THREE.Box3();
         A.people.forEach((p) => box.expandByPoint(p.up));
         box.getCenter(A.center);
         A.radius = box.getSize(new THREE.Vector3()).length() / 2 + 3;
-        PARTS.forEach(([key, m, per, cast]) => { A.m[key] = instMesh(GEO[key], MAT[m], n * per, A.center, A.radius, cast && !A.noShadow); });
+        PARTS.forEach(([key, m, per, cast]) => { A.m[key] = instMesh(GEO[key], MAT[m], n * per, A.center, A.radius, cast && !A.noShadow, A.parent); });
         HEADWEAR.forEach((key) => {
           const list = A.people.filter((p) => p.hw === key);
           list.forEach((p, j) => { p.hwj = j; });
-          if (list.length) A.m[key] = instMesh(GEO[key], MAT.hair, list.length, A.center, A.radius, false);
+          if (list.length) A.m[key] = instMesh(GEO[key], MAT.hair, list.length, A.center, A.radius, false, A.parent);
         });
         A.people.forEach((p) => {
-          const i = p.i;
-          A.m.torso.setColorAt(i, c.copy(col(p.cols.top)));
-          A.m.head.setColorAt(i, c.copy(col(p.cols.skin)));
-          A.m[p.hw].setColorAt(p.hwj, c.copy(col(p.cols.hw)));
+          const i = p.i, k3 = p.cols;
+          A.m.torso.setColorAt(i, c.copy(col(k3.top)));
+          A.m.head.setColorAt(i, c.copy(col(k3.skin)));
+          A.m[p.hw].setColorAt(p.hwj, c.copy(col(k3.hw)));
           for (let k = 0; k < 2; k++) {
-            A.m.sleeve.setColorAt(i * 2 + k, c.copy(col(p.cols.top)));
-            A.m.hand.setColorAt(i * 2 + k, c.copy(col(p.cols.skin)));
-            A.m.thigh.setColorAt(i * 2 + k, c.copy(col(p.cols.bottom)));
-            A.m.shin.setColorAt(i * 2 + k, c.copy(col(p.cols.bottom)));
+            A.m.sleeve.setColorAt(i * 2 + k, c.copy(col(k3.sleeve || k3.top)));
+            A.m.hand.setColorAt(i * 2 + k, c.copy(col(k3.skin)));
+            A.m.thigh.setColorAt(i * 2 + k, c.copy(col(k3.thigh || k3.bottom)));
+            A.m.shin.setColorAt(i * 2 + k, c.copy(col(k3.shin || k3.bottom)));
           }
         });
         if (A.chairs.length) {
-          const cm = instMesh(GEO.chair, MAT.cloth, A.chairs.length, A.center, A.radius, true);
+          const cm = instMesh(GEO.chair, MAT.cloth, A.chairs.length, A.center, A.radius, true, A.parent);
           const q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1), m4 = new THREE.Matrix4();
           A.chairs.forEach((ch, j) => {
             q.setFromAxisAngle(YAX, ch.yaw);
@@ -252,6 +262,13 @@
           A.chairMesh = cm;
         }
       });
+      if (props.poleMesh) { // props are built once, with the first areas; later areas carry none
+        fresh.forEach((A) => {
+          A.people.forEach((p) => { p.arms.set(idleArms(p, 0)); p.hp = p.hpIdle; writePose(p, 0, 0); });
+          markDirty(A);
+        });
+        return;
+      }
       // hand-held props are few, so one mesh each for the whole circuit
       const all = (geo, material, count) => {
         const m = new THREE.InstancedMesh(geo, material, Math.max(1, count));
@@ -314,6 +331,7 @@
         case 'flag': idleArms(p, t); R3(2.35 + 0.25 * Math.sin(t * 6 + ph), 0.2, 0); return TMP;
         case 'phone': A6(1.5, 0, 0.42, 1.45, 0, 0.42); return TMP;
         case 'shock': A6(2.95, -0.25, 0.12, 2.95, -0.25, 0.12); return TMP;
+        case 'swim': { const a = (t * 2.3 + p.ph) % 6.283; A6(a, 0.12, 0, (a + Math.PI) % 6.283, 0.12, 0); return TMP; } // front crawl
         default: return idleArms(p, t);
       }
     }
@@ -323,14 +341,14 @@
       P.hip = lerp(b.hip, BASE.stand.hip, ue);
       P.knee = lerp(b.knee, BASE.stand.knee, ue) + mid * 0.35;
       P.lean = lerp(b.lean, BASE.stand.lean, ue) + mid * 0.4 + 0.015 * Math.sin(t * 0.6 + p.ph) - (p.act === 'cheer' ? 0.08 : 0);
-      P.legOff = p.legOff * ue; P.splay = 0.05 * ue;
+      P.legOff = p.swim ? 0.16 * Math.sin(t * 9 + p.ph) : p.legOff * ue; P.splay = 0.05 * ue;
       P.x = lerp(p.seat.x, p.up.x, ue); P.y = lerp(p.seat.y, p.up.y, ue) + jump; P.z = lerp(p.seat.z, p.up.z, ue);
 
-      _q.setFromAxisAngle(YAX, p.yaw);
+      _e.set(b.pitch, p.yaw, 0, 'YXZ'); _q.setFromEuler(_e);
       _r.compose(_v.set(P.x, P.y, P.z), _q, _s.set(p.s, p.s, p.s));
       const i2 = p.i * 2;
-      // legs only move while getting up, sitting down or jumping
-      if (!(jump === 0 && (u === 0 || u === 1) && p.legsU === u)) {
+      // legs only move while getting up, sitting down or jumping (or swimming, which also moves the body)
+      if (p.swim || !(jump === 0 && (u === 0 || u === 1) && p.legsU === u)) {
         for (let k = 0; k < 2; k++) {
           const sd = k ? 1 : -1;
           _th.multiplyMatrices(_r, loc(sd * 0.09, 0, 0, -(P.hip + sd * P.legOff), 0, sd * P.splay, 'ZXY'));
@@ -377,7 +395,15 @@
     }
 
     // ----- behaviour -----
-    const nearCars = [], nearReacts = [];
+    const nearCars = [], nearReacts = [], _wc = new THREE.Vector3();
+    // a swimmer's lap: round an oval at the water line, facing the way they swim
+    function swimOn(p, t) {
+      const w = p.swim, th = w.th + w.w * t, ca = Math.cos(w.yaw), sa = Math.sin(w.yaw);
+      const lx = w.a * Math.cos(th), lz = w.b * Math.sin(th), dx = -w.a * Math.sin(th) * w.w, dz = w.b * Math.cos(th) * w.w;
+      p.seat.set(w.c.x + lx * ca + lz * sa, w.c.y, w.c.z - lx * sa + lz * ca);
+      p.x = p.seat.x; p.z = p.seat.z;
+      p.yaw = Math.atan2(dx * ca + dz * sa, -dx * sa + dz * ca);
+    }
     function update(t, focusPos, cars) {
       const dt = clamp(t - lastT, 0, 0.1);
       lastT = t; frame++;
@@ -387,18 +413,28 @@
       let propsTouched = false;
 
       for (const A of areas) {
-        if (!A.people.length) continue;
-        // crowds this far away are smaller than a pixel: don't draw them
-        const dist = focusPos ? A.center.distanceTo(focusPos) : 0, vis = dist < A.radius + 650;
+        if (!A.people.length || !A.m.torso) continue;
+        // an area on a moving object (the bus deck) is measured from where that object is now
+        const C = A.parent ? A.parent.localToWorld(_wc.copy(A.center)) : A.center;
+        if (A.parent && !A.parent.visible) continue;
+        // crowds this far away are smaller than a pixel: don't draw them (a few people vanish sooner than a bank of fans)
+        const range = A.range || 650, dist = focusPos ? C.distanceTo(focusPos) : 0, vis = dist < A.radius + range;
         if (vis !== A.visible) { A.visible = vis; for (const k in A.m) A.m[k].visible = vis; if (A.chairMesh) A.chairMesh.visible = vis; }
-        const near = !focusPos || dist < A.radius + 420;
+        const near = !focusPos || dist < A.radius + Math.min(420, range);
         const celHere = cel > 0.02 && (near || A.stand);
         if (!near && !celHere) continue;
         nearCars.length = 0;
-        if (cars) for (const c of cars) if (!c.hidden && c.world.distanceTo(A.center) < A.radius + 260) nearCars.push(c.world);
+        // the school goes wild while the bus goes by
+        let busHere = false;
+        if (cars && !A.parent) for (const c of cars) {
+          if (c.hidden || c.world.distanceTo(C) > A.radius + 260) continue;
+          nearCars.push(c.world);
+          if (A.busFans && c.type === 'bus' && c.world.distanceTo(C) < A.radius + 90) busHere = true;
+        }
+        const party = cel > 0.5 || busHere || (A.parent && t < A.cheerUntil);
         nearReacts.length = 0;
-        for (const r of reactions) if (r.pos.distanceTo(A.center) < A.radius + r.r) nearReacts.push(r);
-        const busy = nearCars.length > 0 || celHere || nearReacts.length > 0 || (!cars && A.spot && A.spot.excite > 0.05);
+        if (!A.parent) for (const r of reactions) if (r.pos.distanceTo(C) < A.radius + r.r) nearReacts.push(r);
+        const busy = nearCars.length > 0 || celHere || busHere || nearReacts.length > 0 || A.parent || (!cars && A.spot && A.spot.excite > 0.05);
         const slot = frame % 6;
         let posed = false;
 
@@ -407,11 +443,12 @@
           const p = A.people[k];
           if (!busy && !p.moving && (k % 6) !== slot) continue;
           // fans far from the camera are re-posed every other frame
-          if (busy && focusPos && (k & 1) !== half && Math.abs(p.x - focusPos.x) + Math.abs(p.z - focusPos.z) > 110) continue;
+          if (busy && focusPos && !A.parent && (k & 1) !== half && Math.abs(p.x - focusPos.x) + Math.abs(p.z - focusPos.z) > 110) continue;
           // time since this fan was last posed (far or idle fans are skipped on some frames)
           const pdt = clamp(t - (p.lt || t - dt), 0, 0.25);
           p.lt = t;
           const kSm = 1 - Math.exp(-pdt * 9), kHead = 1 - Math.exp(-pdt * 5);
+          if (p.swim) swimOn(p, t);
           // nearest car
           let d = 1e9, tx = 0, ty = 0, tz = 0;
           for (const w of nearCars) {
@@ -428,10 +465,13 @@
           }
           // decide what this fan does
           const canStand = !p.noStand && (p.posture !== 'ground' || p.e > 0.7);
-          if (cel > 0.5) {
+          if (p.swim) { p.act = 'swim'; p.actUntil = t + 1; }
+          else if (party) {
             p.act = p.e > 0.3 ? (p.prop === 'flag' ? 'flag' : 'cheer') : 'clap';
             p.actUntil = t + 0.8;
             if (p.e > 0.08 && !p.noStand) p.standUntil = t + 0.8;
+          } else if (A.parent) { // pupils on the bus: waving at the crowds, now and then a cheer
+            if (t > p.actUntil) { const r = rnd(); p.act = r < 0.45 ? 'wave' : r < 0.6 ? 'cheer' : 'idle'; p.actUntil = t + 1.5 + rnd() * 3; }
           } else if (rs > 0.15) {
             if (p.act !== 'shock') p.actUntil = t + 1.6 + p.e * 1.8;
             p.act = 'shock';
@@ -453,7 +493,8 @@
           // arms ease towards the pose for the current action
           const tgt = actArms(p, t);
           let moved = Math.abs(du) > 1e-4;
-          for (let j = 0; j < 6; j++) { const dv = (tgt[j] - p.arms[j]) * kSm; p.arms[j] += dv; if (Math.abs(dv) > 1e-3) moved = true; }
+          if (p.swim) { p.arms.set(tgt); moved = true; } // the stroke goes round and round: no easing
+          else for (let j = 0; j < 6; j++) { const dv = (tgt[j] - p.arms[j]) * kSm; p.arms[j] += dv; if (Math.abs(dv) > 1e-3) moved = true; }
 
           // head (and a little of the upper body) follows the car or the crash
           let rel, hpT;
@@ -473,7 +514,7 @@
           p.moving = moved || p.act !== 'idle';
 
           let jump = 0;
-          if (p.u > 0.95 && (p.act === 'cheer' || (cel > 0.5 && p.e > 0.5))) jump = Math.max(0, Math.sin(t * 7.5 + p.ph)) * (0.05 + 0.07 * p.e);
+          if (p.u > 0.95 && (p.act === 'cheer' || (party && p.e > 0.5))) jump = Math.max(0, Math.sin(t * 7.5 + p.ph)) * (0.05 + 0.07 * p.e);
           writePose(p, t, jump);
           posed = true;
           if (p.prop) propsTouched = true;
@@ -490,6 +531,7 @@
     return {
       newArea, addPerson, finish, update, areas, seatGeometry: GEO.seat,
       setCelebration(on) { celOn = !!on; },
+      cheer(A, len) { A.cheerUntil = lastT + len; }, // everyone in the area on their feet for a while
       react(pos, amount) {
         const a = clamp(amount == null ? 1 : amount, 0, 1);
         reactions.push({ pos: pos.clone(), amount: 0.5 + 0.5 * a, r: 50 + 150 * a, len: 2.5 + 3 * a, t0: null, until: Infinity });
@@ -533,15 +575,48 @@
       { name: 'Brünnchen', sec: 'Brünnchen', off: 20 },
       { name: 'Pflanzgarten', sec: 'Pflanzgarten', off: -10 },
       { name: 'Döttinger Höhe', sec: 'Döttinger Höhe', off: 260, side: 1 },
+      // in the school's playground (school.js), on a straight stretch after Breidscheid
+      { name: 'Parkroyal School', sec: 'Breidscheid', off: [40, 420], camLat: 9.6, camH: 1.7, school: true },
     ];
+    // Sites for the school and the pools: the straightest stretch in a range after a corner, on the flatter
+    // side of the road, clear of the corner boards (just after each section start) and of the sites taken.
+    const wrapD = (d) => d - track.L * Math.round(d / track.L);
+    const taken = [{ s: track.S_FINISH, keep: 220 }];
+    function site(s0, from, to, latNear, latFar, halfLen, keep) {
+      let best = null;
+      // a corner board in the way only counts against a site if there's any other choice
+      for (let pass = 0; pass < 2 && !best; pass++) {
+        for (let off = from; off <= to; off += 10) {
+          const s = (s0 + off + track.L) % track.L;
+          if (!pass && track.sections.some((q) => Math.abs(wrapD(s - q.s - 6)) < halfLen + 12)) continue;
+          if (taken.some((t) => Math.abs(wrapD(s - t.s)) < t.keep + keep)) continue;
+          let bend = 0;
+          for (let u = -halfLen; u <= halfLen; u += 5) bend += Math.abs(track.kW[Math.floor(((s + u + track.L) % track.L) / track.ds) % track.NS]);
+          if (!best || bend < best.bend) best = { s, bend };
+        }
+      }
+      if (!best) best = { s: (s0 + from + track.L) % track.L, bend: 0 }; // nowhere better: just after the corner
+      const slope = (sd) => { // how much the ground rises and falls under the site
+        let lo = 1e9, hi = -1e9;
+        for (let u = -halfLen; u <= halfLen; u += 6) for (let l = latNear; l <= latFar; l += 6) {
+          track.frame(best.s + u, sd * (W + l), fr); const y = NR.groundY(fr.pos.x, fr.pos.z); lo = Math.min(lo, y); hi = Math.max(hi, y);
+        }
+        return hi - lo;
+      };
+      best.side = slope(1) <= slope(-1) ? 1 : -1;
+      taken.push({ s: best.s, keep });
+      return best;
+    }
     const spots = SPOT_DEFS.map((d) => {
-      const s = (track.sOf(d.sec) + d.off + track.L) % track.L;
+      const at = d.school ? site(track.sOf(d.sec), d.off[0], d.off[1], 8, 52, 34, 60) : null;
+      const s = at ? at.s : (track.sOf(d.sec) + d.off + track.L) % track.L;
       const j = Math.floor(s / track.ds) % track.NS;
-      const side = d.side || (track.kW[j] > 0 ? -1 : 1); // outside of the corner
+      const side = at ? at.side : d.side || (track.kW[j] > 0 ? -1 : 1); // outside of the corner
+      if (!at) taken.push({ s, keep: 120 });
       track.frame(s, side * (W + (d.camLat || 8.1)), fr);
       const center = fr.pos.clone();
       const cam = new THREE.Vector3(center.x, NR.groundY(center.x, center.z) + (d.camH || 2.0), center.z);
-      return { name: d.name, s, side, center, cam, stand: !!d.stand, excite: 0 };
+      return { name: d.name, s, side, center, cam, stand: !!d.stand, school: !!d.school, excite: 0 };
     });
 
     const crowd = createCrowd(scene);
@@ -607,6 +682,7 @@
     }
 
     spots.forEach((sp, si) => {
+      if (sp.school) return; // the school has its own railings and its own crowd (school.js)
       // catch fence
       const fp = [], fu = [], fi = [];
       for (let k = 0, s = sp.s - 70; s <= sp.s + 70; s += 2, k++) {
@@ -887,6 +963,12 @@
       scene.add(board);
     });
 
+    // ---------- Parkroyal Community School and the swimming pools (school.js, pools.js) ----------
+    const clearings = []; // ground the forests leave alone: { x, z, r }
+    const ctx = { track, scene, crowd, W, std, add, textTex, alignAt, flags, poleMat, clearOfCams, site, clear: (x, z, r) => clearings.push({ x, z, r }) };
+    const school = NR.buildSchool(ctx, spots.find((sp) => sp.school));
+    const pools = NR.buildPools(ctx);
+
     // ---------- forests ----------
     const { merge } = NR.world;
     const jitter = (geo, amt, yKeep) => {
@@ -923,6 +1005,7 @@
       if (nr && nr.d < W + 12 + rand() * 6) continue;
       let blocked = false;
       for (const sp of spots) if (Math.hypot(x - sp.center.x, z - sp.center.z) < 85) blocked = true;
+      for (const c of clearings) if (Math.hypot(x - c.x, z - c.z) < c.r) blocked = true;
       if (blocked || Math.hypot(x - sfPos.x, z - sfPos.z) < 160 || Math.hypot(x - CASTLE.x, z - CASTLE.z) < 55) continue;
       const y = NR.groundY(x, z) - 0.3;
       const s = 0.75 + rand() * 0.65;
@@ -939,7 +1022,8 @@
 
     crowd.finish();
 
-    function update(t, focusPos, cars) {
+    // nightK: 0 by day, 1 at night (weather.js), for the school's windows and the pool lights
+    function update(t, focusPos, cars, nightK) {
       // spots get louder as cars approach (cameras.js may also set this)
       if (cars) spots.forEach((sp) => {
         let dmin = 1e9;
@@ -948,10 +1032,22 @@
       });
       crowd.update(t, focusPos, cars);
       flags.forEach((f) => { f.rotation.y = Math.sin(t * 1.6 + f.userData.ph) * 0.5; });
+      school.update(t, nightK || 0);
+      pools.update(t, nightK || 0);
+    }
+
+    // the pupils on the open-top bus: a crowd area riding on its deck (models.js lists their seats)
+    let riders = null;
+    function addRiders(rig) {
+      if (riders || !rig.riders) return;
+      riders = crowd.newArea('Bus deck', { parent: rig.deck, range: 350 });
+      rig.riders.forEach((r) => crowd.addPerson(riders, r.pos, r.yaw, 'seat', NR.pupil(r.k)));
+      crowd.finish();
     }
 
     return {
-      spots, update, castle: CASTLE, sfPos, standInfo,
+      spots, update, castle: CASTLE, sfPos, standInfo, school, pools, addRiders,
+      busCheer: (len) => { if (riders) crowd.cheer(riders, len || 3); },
       setCelebration: crowd.setCelebration,
       react: crowd.react,
       get crowdSize() { return crowd.count; },

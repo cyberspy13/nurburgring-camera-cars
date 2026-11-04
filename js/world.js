@@ -44,6 +44,42 @@
     }
   }
 
+  // Merge a group's child meshes that share a material into one mesh per material, in the group's space and
+  // keeping their uvs, so a building costs a draw call per material rather than one per part. Meshes with a
+  // list of materials, or marked userData.keep (animated ones), are left as they are.
+  function bake(group) {
+    const by = new Map(), v = new THREE.Vector3(), nm = new THREE.Matrix3();
+    group.children.slice().forEach((m) => {
+      if (!m.isMesh || Array.isArray(m.material) || m.userData.keep) return;
+      if (!by.has(m.material)) by.set(m.material, []);
+      by.get(m.material).push(m);
+    });
+    by.forEach((list, mat) => {
+      if (list.length < 2) return;
+      const pos = [], nor = [], uv = [];
+      list.forEach((m) => {
+        m.updateMatrix();
+        const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+        const P = g.attributes.position, N = g.attributes.normal, U = g.attributes.uv;
+        nm.getNormalMatrix(m.matrix);
+        for (let i = 0; i < P.count; i++) {
+          v.fromBufferAttribute(P, i).applyMatrix4(m.matrix); pos.push(v.x, v.y, v.z);
+          v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+          uv.push(U ? U.getX(i) : 0, U ? U.getY(i) : 0);
+        }
+        group.remove(m);
+      });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      const out = new THREE.Mesh(geo, mat);
+      out.castShadow = list.some((m) => m.castShadow); out.receiveShadow = list.some((m) => m.receiveShadow);
+      group.add(out);
+    });
+    return group;
+  }
+
   // Merge geometries (each with an optional Matrix4 and vertex tint) into one non-indexed geometry.
   function merge(parts) {
     const pos = [], nor = [], colr = [];
@@ -470,5 +506,5 @@
     });
   }
 
-  NR.world = { merge, col, smooth, hash, vnoise, fbm, rand, canvasTex, TEX, SKY, SUN_DIR, makeTextures, buildSky, buildTerrain, buildRoad };
+  NR.world = { merge, bake, col, smooth, hash, vnoise, fbm, rand, canvasTex, TEX, SKY, SUN_DIR, makeTextures, buildSky, buildTerrain, buildRoad };
 })();
