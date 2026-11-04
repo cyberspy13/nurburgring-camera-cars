@@ -119,10 +119,11 @@
     $('speedSel').addEventListener('change', (e) => { speed = parseFloat(e.target.value) || 1; });
     $('hudBtn').addEventListener('click', toggleHud);
     $('showHud').addEventListener('click', toggleHud);
-    $('towerToggle').addEventListener('click', () => {
-      const open = document.body.classList.toggle('tower-open');
-      $('towerToggle').setAttribute('aria-expanded', String(open));
-    });
+    // drawers on smaller screens: the standings, and on phones the weather (in place of the map)
+    [['towerToggle', 'tower-open'], ['wxToggle', 'wx-open']].forEach(([id, cls]) => $(id).addEventListener('click', () => {
+      $(id).setAttribute('aria-expanded', String(document.body.classList.toggle(cls)));
+    }));
+    if (window.matchMedia('(pointer: coarse)').matches) $('zoomTip').textContent = 'Pinch to zoom';
     $('towerList').addEventListener('click', (e) => {
       const row = e.target.closest('[data-i]');
       if (row) setFocus(+row.dataset.i);
@@ -146,14 +147,14 @@
     }
     function toggleHud() { document.body.classList.toggle('hud-hidden'); }
 
-    // engine sound: on by default, but browsers only start it after the first click or key press
+    // engine sound: on by default, but browsers only start it after the first tap, click or key press
     const soundBtn = $('soundBtn');
     function syncSound() {
       const s = audio.status();
       soundBtn.setAttribute('aria-pressed', String(s === 'on'));
       soundBtn.classList.toggle('waiting', s === 'waiting');
       soundBtn.classList.toggle('muted', s === 'off');
-      soundBtn.title = s === 'waiting' ? 'Engine sound starts on your first click or key press (M)' : `Engine sound ${s} (M)`;
+      soundBtn.title = s === 'waiting' ? 'Engine sound starts on your first tap, click or key press (M)' : `Engine sound ${s} (M)`;
     }
     function toggleSound() {
       if (audio.status() === 'on') audio.setEnabled(false);
@@ -383,11 +384,27 @@
       else if (k === 'Escape' && replay.active) { queue.length = 0; replay.stop(); }
       else return;
     });
-    const cv = renderer.domElement;
+    // On the 3D view a mouse drag or one finger turns the blimp; the wheel or a two-finger pinch zooms.
+    const cv = renderer.domElement, touches = new Map();
+    let pinch = 0;
+    const spread = () => { const [a, b] = touches.values(); return Math.hypot(a.x - b.x, a.y - b.y); };
     cv.addEventListener('wheel', (e) => { e.preventDefault(); cams.onWheel(e); }, { passive: false });
-    cv.addEventListener('pointerdown', (e) => cams.onDown(e));
-    window.addEventListener('pointermove', (e) => cams.onMove(e));
-    window.addEventListener('pointerup', () => cams.onUp());
+    cv.addEventListener('pointerdown', (e) => {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 1) cams.onDown(e);
+      else { cams.onUp(); pinch = touches.size === 2 ? spread() : 0; } // a second finger: stop turning
+    });
+    window.addEventListener('pointermove', (e) => {
+      const t = touches.get(e.pointerId);
+      if (t) { t.x = e.clientX; t.y = e.clientY; }
+      if (touches.size !== 2) { cams.onMove(e); return; }
+      const d = spread();
+      if (pinch && d) cams.zoom(pinch / d);
+      pinch = d;
+    });
+    const lift = (e) => { touches.delete(e.pointerId); pinch = 0; cams.onUp(); };
+    window.addEventListener('pointerup', lift);
+    window.addEventListener('pointercancel', lift); // iOS cancels a touch when the system takes the gesture
 
     // ---------- timing tower ----------
     let towerT = 0;
@@ -529,9 +546,57 @@
       camera.updateProjectionMatrix();
       sizeMinimap();
     }
-    window.addEventListener('resize', resize);
+    // Observing the elements themselves catches every change of size, from an iPhone or iPad turning round
+    // or Split View to the map coming back when a phone's weather drawer closes.
+    if (window.ResizeObserver) { new ResizeObserver(resize).observe(host); new ResizeObserver(sizeMinimap).observe(mm); }
+    else window.addEventListener('resize', resize);
     resize();
+
+    // ---------- overlay layout ----------
+    // The banner and yellow flags go in the free band between the panels at the top and the bottom row:
+    // between the side columns when there's room, else under them. The panels change size with the screen,
+    // the open drawers and the race phase, so the band is measured, not set per screen size.
+    const px = {};
+    const setPx = (name, v) => { v = Math.round(v); if (px[name] !== v) { px[name] = v; document.documentElement.style.setProperty(name, v + 'px'); } };
+    const boxes = (sels) => sels.map((s) => document.querySelector(s)).filter((el) => el.getClientRects().length).map((el) => el.getBoundingClientRect());
+    function layoutHud() {
+      if (document.body.classList.contains('hud-hidden')) return;
+      const W = window.innerWidth, H = window.innerHeight;
+      const low = boxes(['.focus', '.dock', '.tele', '#replayBar']);
+      const topOf = (rs) => Math.min(H, ...rs.map((r) => r.top));
+      setPx('--hud-b', H - topOf(low));
+      const SIDE = ['.left', '#results', '#resShow'];
+      let side = boxes(SIDE);
+      if (side.length) { // the left column (or the results) stops above whatever is under it
+        const l = Math.min(...side.map((r) => r.left)), r = Math.max(...side.map((r) => r.right));
+        setPx('--side-b', H - topOf(low.filter((b) => b.left < r && b.right > l)));
+        side = boxes(SIDE); // which may have changed its height
+      }
+      const right = boxes(['.right'])[0];
+      const inner = Math.max(0, ...side.map((r) => r.right)), outer = right ? right.left : W;
+      let t, l, r;
+      const between = outer - inner >= 236;
+      if (between) { t = right ? right.top : 14; l = inner + 8; r = W - outer + 8; }
+      else {
+        t = Math.max(14, ...side.concat(right || []).map((b) => b.bottom)) + 8;
+        l = side.length ? Math.min(...side.map((b) => b.left)) : 16; r = right ? W - right.right : 16;
+      }
+      // A short band (a small phone upright) keeps the banner and one whole flag clear of the bottom row by
+      // letting them reach up over the map; the banner then covers the flags while it shows.
+      const b = px['--hud-b'] + 8, bannerH = $('banner').offsetHeight, FLAG = 80;
+      const tGut = right ? right.top : 14;
+      setPx('--banner-t', Math.max(tGut, Math.min(t, H - b - bannerH)));
+      let flagsT = H - b - t >= bannerH + 8 + FLAG ? t + bannerH + 8 : Math.max(tGut, Math.min(t, H - b - FLAG));
+      if (!between && document.body.classList.contains('tower-open')) flagsT = H - b; // the open standings fill the band: no flags till they close
+      setPx('--flags-t', flagsT);
+      setPx('--band-b', b); setPx('--band-l', l); setPx('--band-r', r);
+    }
+    let layoutDue = false;
+    const relayout = () => { if (!layoutDue) { layoutDue = true; requestAnimationFrame(() => { layoutDue = false; layoutHud(); }); } };
+    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar'].forEach((s) => ro.observe(document.querySelector(s))); }
+    window.addEventListener('resize', relayout);
     syncUI();
+    layoutHud();
 
     let last = performance.now(), clockT = 0, flagT = 0;
     function loop(now) {

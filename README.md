@@ -26,10 +26,12 @@ A live 3D race of twelve GT3 cars, plus one red double-decker bus, round a compa
 | `W` / `N` | Cycle the weather / day or night |
 | `R` | Replay the last incident |
 | `P` or `Space` | Pause |
-| `M` | Sound on or off (sound starts after your first click or key press) |
+| `M` | Sound on or off (sound starts after your first tap, click or key press) |
 | `H` | Hide the overlay |
 
 You can also use the on-screen buttons. Weather, day/night, pause, race speed (up to 16×) and replays sit under the circuit map. Scroll to zoom the air cameras; drag to orbit the blimp.
+
+**On an iPhone or iPad** everything is a tap: pinch the 3D view to zoom the air cameras and drag one finger to orbit the blimp. On a phone the controls sit above the map, the weather buttons open from the cloud button, and the standings open from **Standings**. Turn the phone on its side for the widest view. In Safari, Share › Add to Home Screen runs it full screen. With the iPhone's silent switch on, iOS mutes the engine sound.
 
 ## Running it locally
 

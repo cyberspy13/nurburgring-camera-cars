@@ -181,13 +181,14 @@
       return focusPos;
     }
 
-    // pointer controls: drag to orbit the blimp, wheel to zoom heli / blimp
-    function onWheel(e) {
+    // pointer controls: drag to orbit the blimp; the wheel or a pinch (main.js) zooms heli / blimp.
+    // k scales the camera's distance: below 1 moves in.
+    function zoom(k) {
       if (state.mode !== 'air') return;
-      const k = Math.exp(e.deltaY * 0.001);
       if (state.air === 'blimp') blimp.zoom = THREE.MathUtils.clamp(blimp.zoom * k, 0.35, 1.4);
       else heliZoom.k = THREE.MathUtils.clamp(heliZoom.k * k, 0.5, 3);
     }
+    const onWheel = (e) => zoom(Math.exp(e.deltaY * 0.001));
     let drag = null;
     function onDown(e) { if (state.mode === 'air' && state.air === 'blimp') drag = { x: e.clientX, y: e.clientY }; }
     function onMove(e) {
@@ -206,7 +207,7 @@
     }
 
     return {
-      state, apply, update, release, onWheel, onDown, onMove, onUp,
+      state, apply, update, release, zoom, onWheel, onDown, onMove, onUp,
       get specTarget() { return specTarget; },
       get tv() { return tvOn; },
       setMode(m) { state.mode = m; apply(); },

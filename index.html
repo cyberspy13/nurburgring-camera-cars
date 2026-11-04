@@ -7,6 +7,11 @@
 <title>Camera Cars on a Nürburgring Track</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 4 4%27%3E%3Cpath fill=%27%23fff%27 d=%27M0 0h4v4H0z%27/%3E%3Cpath fill=%27%23111%27 d=%27M0 0h1v1H0zM2 0h1v1H2zM1 1h1v1H1zM3 1h1v1H3zM0 2h1v1H0zM2 2h1v1H2zM1 3h1v1H1zM3 3h1v1H3z%27/%3E%3C/svg%3E">
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0b0f14">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Camera Cars">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Saira:wght@400;500;600&display=swap">
@@ -28,14 +33,21 @@
     --gut-r: max(16px, env(safe-area-inset-right, 0px));
     --gut-t: calc(14px + env(safe-area-inset-top, 0px));
     --gut-b: calc(14px + env(safe-area-inset-bottom, 0px));
+    /* the free band for the banner and yellow flags, and the room the bottom row takes; main.js measures
+       these from the panels (layoutHud), so the values here only hold until it first runs */
+    --banner-t: var(--gut-t); --band-b: 240px; --band-l: 300px; --band-r: 280px; --flags-t: calc(var(--gut-t) + 78px);
+    --hud-b: 216px; --side-b: 216px;
     color-scheme: dark;
   }
   [hidden] { display: none !important; }
-  html, body { height: 100%; margin: 0; }
+  html, body { height: 100%; margin: 0; overscroll-behavior: none; }
+  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* iOS enlarges text in landscape otherwise */
   body {
     background: var(--ground); color: var(--text); font-family: var(--font-body); font-size: 14px;
     overflow: hidden; -webkit-font-smoothing: antialiased;
     padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+    /* touch: quick taps on a button don't zoom the page, and a long press doesn't select text */
+    touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
   }
   #view { position: fixed; inset: 0; }
   #view canvas { display: block; touch-action: none; }
@@ -52,7 +64,7 @@
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
   /* top-left: brand + timing tower */
-  .left { position: absolute; top: var(--gut-t); left: var(--gut-l); width: 268px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - 230px); }
+  .left { position: absolute; top: var(--gut-t); left: var(--gut-l); width: 268px; display: flex; flex-direction: column; gap: 8px; max-height: calc(100% - var(--gut-t) - var(--side-b) - 8px); }
   .brand { padding: 10px 12px 10px; display: grid; gap: 2px; }
   .kicker { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
   .live { display: inline-flex; align-items: center; gap: 5px; color: var(--text); }
@@ -65,12 +77,12 @@
   .logo { flex: none; width: 52px; height: auto; }
   .brand-meta { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-display); font-size: 14px; color: var(--muted); margin-top: 4px; gap: 8px; }
   .brand-meta b { color: var(--text); font-weight: 600; }
-  #towerToggle { display: none; background: none; border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
+  #towerToggle { display: none; align-items: center; background: none; border: 1px solid var(--line); border-radius: 4px; padding: 2px 8px; font-family: var(--font-display); font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; }
 
   .tower { overflow: auto; min-height: 0; padding: 4px; scrollbar-width: thin; }
   .tower ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .row { width: 100%; display: grid; grid-template-columns: 22px 4px 34px 1fr auto 10px; align-items: center; gap: 7px; padding: 4px 8px 4px 4px; border: 0; border-radius: 4px; background: transparent; text-align: left; font-family: var(--font-display); font-size: 15px; line-height: 1.25; }
-  .row:hover { background: rgba(255, 255, 255, 0.07); }
+  @media (hover: hover) { .row:hover { background: rgba(255, 255, 255, 0.07); } } /* a tap would leave it stuck on */
   .row.on { background: var(--signal); color: var(--signal-ink); }
   .row .p { text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
   .row .sw { height: 16px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
@@ -95,8 +107,9 @@
   .map-cap { display: flex; justify-content: space-between; font-family: var(--font-display); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); padding: 2px 4px 0; }
   .ctrls { display: flex; gap: 6px; padding: 6px; align-items: center; }
   .ctrl { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
-  .ctrl:hover { background: rgba(255, 255, 255, 0.1); }
-  .ctrl[aria-pressed="true"] { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+  @media (hover: hover) { .ctrl:hover { background: rgba(255, 255, 255, 0.1); } }
+  .ctrl[aria-pressed="true"], #wxToggle[aria-expanded="true"] { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
+  #wxToggle { display: none; }
   .ctrl svg { width: 14px; height: 14px; }
   select.ctrl { appearance: none; -webkit-appearance: none; padding-right: 10px; background: rgba(255, 255, 255, 0.04); }
   select.ctrl option { background: var(--panel-solid); color: var(--text); }
@@ -108,7 +121,7 @@
   .wbtn { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; height: 30px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
   .wx-4 .wbtn { flex-direction: column; gap: 2px; height: 42px; font-size: 11px; }
   .wbtn svg { width: 16px; height: 16px; flex: none; }
-  .wbtn:hover { background: rgba(255, 255, 255, 0.1); }
+  @media (hover: hover) { .wbtn:hover { background: rgba(255, 255, 255, 0.1); } }
   .wbtn[aria-pressed="true"] { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
   .ctrl.icon { padding: 0 9px; }
   .ctrl:disabled { opacity: 0.35; cursor: default; background: rgba(255, 255, 255, 0.04); }
@@ -118,15 +131,16 @@
   #soundBtn.muted .off { display: block; }
   #soundBtn.waiting { border-color: var(--signal); color: var(--signal); }
 
-  /* banner */
-  .banner { position: absolute; top: var(--gut-t); left: 50%; transform: translate(-50%, -8px); opacity: 0; transition: opacity 0.3s, transform 0.3s; text-align: center; padding: 6px 22px 8px; pointer-events: none; border-left: 4px solid var(--signal); max-width: calc(100% - 640px); min-width: 200px; }
+  /* banner, centred in the free band (see --band-* above) */
+  .banner { position: absolute; top: var(--banner-t); left: calc(50% + (var(--band-l) - var(--band-r)) / 2); transform: translate(-50%, -8px); opacity: 0; transition: opacity 0.3s, transform 0.3s; text-align: center; padding: 6px 22px 8px; pointer-events: none; z-index: 1; border-left: 4px solid var(--signal); box-sizing: border-box; max-width: calc(100% - var(--band-l) - var(--band-r)); min-width: min(248px, calc(100% - var(--band-l) - var(--band-r))); }
   .banner.show { opacity: 1; transform: translate(-50%, 0); }
   .banner small { display: block; font-family: var(--font-display); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--signal); }
   .banner strong { display: block; font-family: var(--font-display); font-weight: 800; font-size: 30px; line-height: 1.05; text-transform: uppercase; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* yellow-flag notices under the banner */
-  .flags { position: absolute; top: calc(var(--gut-t) + 78px); left: 50%; transform: translateX(-50%); display: grid; gap: 6px; width: min(380px, calc(100% - 600px)); min-width: 240px; pointer-events: none; }
-  .flag { pointer-events: auto; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 10px; padding: 7px 10px 7px 12px; border-left: 4px solid var(--signal); font-family: var(--font-display); }
+  /* yellow-flag notices under the banner, filling the rest of the band. Notices that don't fit whole wrap
+     into a second column, which is clipped, so a short band shows fewer of them rather than half of one. */
+  .flags { position: absolute; top: var(--flags-t); bottom: var(--band-b); left: calc(50% + (var(--band-l) - var(--band-r)) / 2); transform: translateX(-50%); width: min(380px, calc(100% - var(--band-l) - var(--band-r))); display: flex; flex-flow: column wrap; align-content: flex-start; gap: 6px; overflow: hidden; pointer-events: none; }
+  .flag { flex: none; width: 100%; box-sizing: border-box; pointer-events: auto; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 10px; padding: 7px 10px 7px 12px; border-left: 4px solid var(--signal); font-family: var(--font-display); }
   .flag small { grid-column: 1; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--signal); }
   .flag b { grid-column: 1; font-size: 15px; font-weight: 600; line-height: 1.2; }
   .flag .ctrl { grid-column: 2; grid-row: 1 / span 2; height: 28px; font-size: 13px; }
@@ -144,7 +158,7 @@
   .rp-prog i { display: block; height: 100%; background: var(--live); transform-origin: left; transform: scaleX(0); }
 
   /* results and celebration */
-  .results { position: absolute; top: var(--gut-t); left: var(--gut-l); width: 340px; max-height: calc(100% - 200px); display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; z-index: 3; }
+  .results { position: absolute; top: var(--gut-t); left: var(--gut-l); width: 340px; max-height: calc(100% - var(--gut-t) - var(--side-b) - 38px); display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; z-index: 3; }
   body.ceremony .left { display: none; }
   .res-head small { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--signal); }
   .res-head h2 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 34px; line-height: 1; text-transform: uppercase; }
@@ -152,7 +166,7 @@
   #resSwatch { border-radius: 2px; }
   .res-winner b { display: block; font-family: var(--font-display); font-size: 21px; line-height: 1.15; }
   .res-winner span { display: block; font-size: 12px; color: var(--muted); }
-  .res-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-family: var(--font-display); font-size: 15px; border-top: 1px solid var(--line); padding-top: 6px; }
+  .res-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-family: var(--font-display); font-size: 15px; border-top: 1px solid var(--line); padding-top: 6px; overflow: auto; min-height: 0; } /* scrolls, so the buttons below stay in view */
   .res-list li { display: grid; grid-template-columns: 20px 4px 32px 1fr auto 70px; gap: 7px; align-items: center; padding: 3px 2px; }
   .res-list li:first-child { color: var(--signal); }
   .res-list .p { text-align: center; font-weight: 700; }
@@ -179,7 +193,7 @@
   .focus .l2, .focus .l3 { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .focus .l3 { color: var(--text); opacity: 0.8; }
   .icon-btn { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); padding: 0; }
-  .icon-btn:hover { background: rgba(255, 255, 255, 0.12); }
+  @media (hover: hover) { .icon-btn:hover { background: rgba(255, 255, 255, 0.12); } }
   .icon-btn svg { width: 16px; height: 16px; }
 
   .dock { padding: 8px; display: grid; gap: 8px; justify-items: center; }
@@ -188,7 +202,7 @@
   .mode svg { width: 26px; height: 26px; }
   .mode b { font-size: 17px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; }
   .mode small { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; line-height: 1; }
-  .mode:hover { background: rgba(255, 255, 255, 0.1); }
+  @media (hover: hover) { .mode:hover { background: rgba(255, 255, 255, 0.1); } }
   .mode[aria-pressed="true"] { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
   .mode[aria-pressed="true"] small { color: rgba(26, 20, 0, 0.7); }
   .sub { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; font-family: var(--font-display); }
@@ -217,7 +231,8 @@
   .laps span { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .tele.idle .speedo, .tele.idle .rpm, .tele.idle .t-sec, .tele.idle .laps { opacity: 0.25; }
 
-  .keys { position: absolute; bottom: calc(var(--gut-b) + 168px); left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(238, 242, 245, 0.7); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); white-space: nowrap; pointer-events: none; }
+  .keys { position: absolute; bottom: calc(var(--gut-b) + 168px); left: 50%; transform: translateX(-50%); font-size: 12px; color: rgba(238, 242, 245, 0.7); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); width: max-content; max-width: calc(100% - 640px); text-align: center; line-height: 1.6; pointer-events: none; } /* wraps rather than run under the telemetry */
+  .keys span { white-space: nowrap; }
   .keys kbd { font-family: var(--font-display); font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 3px; padding: 0 5px; margin: 0 2px; }
   body[data-mode="cabin"] .keys { display: none; }
 
@@ -228,55 +243,120 @@
   .bar::after { content: ""; display: block; width: 40%; height: 100%; background: var(--signal); animation: slide 1.1s ease-in-out infinite; }
   @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
 
+  /* Smaller screens. Tablets in portrait (up to 860 px wide) and phones on their side (under 500 px tall)
+     share a slim right column and a standings drawer. Phones also fold the weather into a drawer. */
   @media (max-width: 1080px) {
-    .banner { max-width: calc(100% - 40px); top: calc(var(--gut-t) + 120px); }
-    .flags { top: calc(var(--gut-t) + 196px); width: min(380px, calc(100% - 40px)); }
     .results { width: min(340px, calc(100% - 200px)); }
     .keys { display: none; }
   }
-  @media (max-width: 860px) {
-    .left { width: min(268px, calc(100% - 180px)); max-height: calc(100% - 330px); }
-    .right { width: 150px; }
-    .map canvas { height: 100px; }
-    .ctrls { flex-wrap: wrap; }
-    .bottom { flex-wrap: wrap; }
-    .dock { order: 3; flex: 1 1 100%; }
-    .banner { top: calc(var(--gut-t) + 318px); }
-    .flags { top: calc(var(--gut-t) + 392px); }
+  @media (max-width: 860px), (max-height: 500px) {
+    .right { width: 156px; }
+    .ctrls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .ctrls .grow { display: none; }
+    .ctrls .ctrl { justify-content: center; padding: 0 4px; }
     .wx-4 .wbtn { height: 30px; }
     .wx-4 .wbtn span { display: none; }
-    .focus, .tele { flex: 1 1 0; width: auto; min-width: 0; }
-    #towerToggle { display: inline-block; }
+    #towerToggle { display: inline-flex; }
     .tower { display: none; }
     body.tower-open .tower { display: block; }
+  }
+  @media (max-width: 860px) {
+    .left { width: min(268px, calc(100% - 180px)); }
+    .banner strong { font-size: 24px; } /* the band between the columns is narrow */
+    .map canvas { height: 100px; }
+    .bottom { flex-wrap: wrap; }
+    .dock { order: 3; flex: 1 1 100%; }
+    .focus, .tele { flex: 1 1 0; width: auto; min-width: 0; }
+  }
+  /* phones (and an iPad's Split View): the controls go to the top, and the weather opens in place of the map */
+  @media (max-width: 560px), (max-height: 500px), (max-width: 860px) and (max-height: 820px) {
+    .right .ctrls { order: -1; }
+    #wxToggle { display: inline-flex; }
+    .wx { display: none; }
+    body.wx-open .wx { display: grid; }
+    body.wx-open .map { display: none; }
+    body.wx-open .right { z-index: 2; }
+    .mode { min-width: 0; }
+    .mode small, .focus .l3, .t-sec, .laps, .t-head span:last-child { display: none; }
+    .modes { width: 100%; }
+    .dock { justify-items: stretch; }
+    #spotName, #cabinName { min-width: 0; flex: 1; font-size: 14px; }
+    .focus { padding: 6px; gap: 6px; }
+    #fcSwatch { height: 32px; }
+    .focus .l1 { font-size: 15px; }
+    .tele { padding: 8px; gap: 4px; }
   }
   @media (max-width: 560px) {
     h1 { font-size: 20px; }
     .logo { width: 40px; }
     .brand { padding: 8px 10px; }
-    .left { width: calc(100% - 196px); }
-    .right { width: 140px; }
-    .ctrls .ctrl { height: 28px; padding: 0 7px; font-size: 12px; }
-    .ctrls .grow { display: none; }
-    .mode { min-width: 0; padding: 7px 6px; }
-    .mode small { display: none; }
+    .left { width: calc(100% - var(--gut-l) - var(--gut-r) - 164px); }
+    body.tower-open .tower { margin-right: -164px; position: relative; z-index: 1; } /* full width, over the map */
+    .map canvas { height: 80px; }
+    .bottom { gap: 8px; }
+    .tele { flex: none; width: 150px; } /* the car's name gets the rest, on up to two lines */
+    .bottom .focus { grid-template-columns: 36px 1fr 36px; }
+    .focus .icon-btn { width: 36px; }
+    .focus .l1 { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+    .focus .l2 { display: none; }
+    .t-head span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mode { padding: 6px; }
+    .mode svg { width: 22px; height: 22px; }
     .mode b { font-size: 15px; }
-    .modes { width: 100%; }
-    .dock { justify-items: stretch; }
-    #spotName, #cabinName { min-width: 0; flex: 1; font-size: 14px; }
-    .focus { grid-template-columns: 28px 1fr 28px; padding: 6px; gap: 6px; }
-    .icon-btn { width: 28px; height: 28px; }
-    .focus .l1 { font-size: 15px; }
-    .tele { padding: 8px; gap: 4px; }
-    .speedo .v { font-size: 34px; }
+    .speedo .v { font-size: 30px; }
     .gear b { font-size: 22px; }
-    .laps, .t-head span:last-child { display: none; }
     .banner strong { font-size: 22px; }
-    .results { left: var(--gut-l); right: var(--gut-r); width: auto; max-height: calc(100% - 280px); }
+    .results { left: var(--gut-l); right: var(--gut-r); width: auto; }
     .replaybar { flex-wrap: wrap; gap: 8px; }
     .rp-prog { order: 5; flex: 1 1 100%; }
     .res-list li { grid-template-columns: 20px 4px 30px 1fr auto; }
     .res-list .bl { display: none; }
+  }
+  @media (max-width: 360px) {
+    .focus, .tele { flex: 1 1 100%; width: auto; } /* one above the other */
+  }
+  /* phones on their side: a slim brand, and the car, the cameras and the speed in one row along the bottom */
+  @media (max-height: 500px) and (min-width: 561px) {
+    h1 { font-size: 15px; }
+    .logo { width: 30px; }
+    .brand { padding: 6px 10px; gap: 1px; }
+    .kicker { font-size: 11px; }
+    .brand-meta { font-size: 13px; margin-top: 2px; }
+    .left, .focus { width: 190px; }
+    body.tower-open .left { width: 240px; }
+    .tele { width: 156px; }
+    .map canvas { height: 70px; }
+    .map-cap, .sub .tip { display: none; }
+    .wx { position: absolute; top: 0; right: calc(100% + 8px); width: 200px; box-sizing: border-box; } /* opens beside the controls */
+    body.wx-open .map { display: block; }
+    .bottom { flex-wrap: nowrap; }
+    .focus, .tele { flex: none; }
+    .dock { order: 0; flex: 1 1 auto; min-width: 0; padding: 6px; gap: 6px; }
+    .mode { padding: 5px 4px; gap: 2px; }
+    .mode svg { width: 18px; height: 18px; }
+    .mode b { font-size: 13px; letter-spacing: 0.04em; }
+    .speedo .v { font-size: 28px; }
+    .gear { padding: 1px 8px 2px; }
+    .gear b { font-size: 20px; }
+    .banner { padding: 4px 14px 6px; }
+    .banner strong { font-size: 20px; }
+  }
+  /* touch screens: finger-sized targets (Apple asks for 44 px) */
+  @media (pointer: coarse) {
+    .ctrl { height: 44px; min-width: 44px; justify-content: center; }
+    select.ctrl { font-size: 16px; } /* iOS zooms the page into a select with smaller text */
+    .wbtn, .wx-4 .wbtn { height: 44px; }
+    .icon-btn { width: 44px; height: 44px; }
+    .focus { grid-template-columns: 44px 1fr 44px; }
+    .row { min-height: 36px; }
+    #towerToggle { min-height: 44px; }
+    .flag .ctrl { height: 44px; }
+  }
+  @media (pointer: coarse) and (min-width: 861px) and (min-height: 501px) {
+    .right { width: 284px; } /* room for the bigger buttons in one row */
+  }
+  @media (hover: none) {
+    .keys { display: none; } /* no keyboard, as a rule */
   }
   @media (prefers-reduced-motion: reduce) {
     .banner, .live::before, .bar::after { animation: none; transition: none; }
@@ -341,10 +421,13 @@
       <button type="button" class="ctrl icon" id="replayBtn" aria-label="Replay the last incident" title="Replay the last incident (R)" disabled>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2.5 2.2v3h3"/><path d="M6.8 5.8v4.4L10.4 8z" fill="currentColor"/></svg>
       </button>
+      <button type="button" class="ctrl icon" id="wxToggle" aria-expanded="false" aria-controls="wx" aria-label="Weather and time of day" title="Weather and time of day">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.16 7.84A2.6 2.6 0 1 1 8.51 6.67"/><path d="M6 1.3v1.4M1.3 6h1.4M2.7 2.7l.9.9M9.3 2.7l-.9.9"/><path d="M5.5 14h6.3a2.4 2.4 0 0 0 .2-4.8 3.1 3.1 0 0 0-5.9.9A1.95 1.95 0 0 0 5.5 14z"/></svg>
+      </button>
       <span class="grow"></span>
       <button type="button" class="ctrl" id="hudBtn" title="Hide or show the overlay (H)">HUD</button>
     </div>
-    <div class="wx panel" aria-label="Weather and time of day">
+    <div class="wx panel" id="wx" aria-label="Weather and time of day">
       <div class="wx-row wx-4" role="group" aria-label="Weather">
         <button type="button" class="wbtn" data-wx="clear" aria-pressed="true" title="Clear (W cycles the weather)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/></svg><span>Clear</span></button>
         <button type="button" class="wbtn" data-wx="rain" aria-pressed="false" title="Rain (W)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 9.5a2.8 2.8 0 0 1-.3-5.6 3.6 3.6 0 0 1 6.9-.6 2.9 2.9 0 0 1 .4 5.8"/><path d="m5 12-1 2.5M8.5 12l-1 2.5M12 12l-1 2.5"/></svg><span>Rain</span></button>
@@ -379,7 +462,7 @@
   </section>
   <button type="button" class="ctrl res-pill" id="resShow" hidden>Results</button>
 
-  <div class="keys" aria-hidden="true"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras · <kbd>←</kbd><kbd>→</kbd> switch car or stand · <kbd>B</kbd> helicopter / blimp · <kbd>P</kbd> pause · <kbd>R</kbd> replay · <kbd>W</kbd> weather · <kbd>N</kbd> night · <kbd>M</kbd> sound · <kbd>H</kbd> hide overlay</div>
+  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span></div>
 
   <div class="bottom">
     <section class="focus panel" aria-label="Car you are following">
@@ -412,7 +495,7 @@
           <button type="button" class="ctrl" data-air="heli" aria-pressed="true">Helicopter</button>
           <button type="button" class="ctrl" data-air="blimp" aria-pressed="false">Blimp</button>
         </div>
-        <span class="tip">Scroll to zoom</span>
+        <span class="tip" id="zoomTip">Scroll to zoom</span>
       </div>
       <div class="sub" id="subSpot" hidden>
         <button type="button" class="icon-btn" id="spotPrev" aria-label="Previous spectator stand"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg></button>
