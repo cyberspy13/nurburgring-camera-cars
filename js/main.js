@@ -421,24 +421,31 @@
       else return;
     });
     // On the 3D view a mouse drag or one finger turns the blimp; the wheel or a two-finger pinch zooms.
+    // On a touch screen a quick tap that doesn't move hides or shows the overlay, as in a video player.
     const cv = renderer.domElement, touches = new Map();
-    let pinch = 0;
+    let pinch = 0, tap = null;
     const spread = () => { const [a, b] = touches.values(); return Math.hypot(a.x - b.x, a.y - b.y); };
     cv.addEventListener('wheel', (e) => { e.preventDefault(); cams.onWheel(e); }, { passive: false });
     cv.addEventListener('pointerdown', (e) => {
       touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      tap = touches.size === 1 && e.pointerType !== 'mouse' ? { id: e.pointerId, x: e.clientX, y: e.clientY, t: e.timeStamp } : null;
       if (touches.size === 1) cams.onDown(e);
       else { cams.onUp(); pinch = touches.size === 2 ? spread() : 0; } // a second finger: stop turning
     });
     window.addEventListener('pointermove', (e) => {
       const t = touches.get(e.pointerId);
       if (t) { t.x = e.clientX; t.y = e.clientY; }
+      if (tap && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) > 10) tap = null; // a drag, not a tap
       if (touches.size !== 2) { cams.onMove(e); return; }
       const d = spread();
       if (pinch && d) cams.zoom(pinch / d);
       pinch = d;
     });
-    const lift = (e) => { touches.delete(e.pointerId); pinch = 0; cams.onUp(); };
+    const lift = (e) => {
+      if (e.type === 'pointerup' && tap && tap.id === e.pointerId && e.timeStamp - tap.t < 300) toggleHud(); // (event times: a slow frame doesn't turn a tap into a hold)
+      tap = null;
+      touches.delete(e.pointerId); pinch = 0; cams.onUp();
+    };
     window.addEventListener('pointerup', lift);
     window.addEventListener('pointercancel', lift); // iOS cancels a touch when the system takes the gesture
 
@@ -793,6 +800,11 @@
         setPx('--side-b', H - topOf(low.filter((b) => b.left < r && b.right > l)));
         side = boxes(SIDE); // which may have changed its height
       }
+      // The map gives way when it would run under the bottom row or the pedals (a phone on its side with
+      // Safari's tab bar showing, or driving). It's only made invisible, so it keeps its room and this
+      // measures the same either way.
+      const map = boxes(['.map'])[0];
+      if (map) document.body.classList.toggle('map-off', topOf(low.filter((b) => b.left < map.right && b.right > map.left)) < map.bottom - 4);
       const right = boxes(['.right'])[0];
       const inner = Math.max(0, ...side.map((r) => r.right)), outer = right ? right.left : W;
       let t, l, r;
@@ -802,6 +814,8 @@
         t = Math.max(14, ...side.concat(right || []).map((b) => b.bottom)) + 8;
         l = side.length ? Math.min(...side.map((b) => b.left)) : 16; r = right ? W - right.right : 16;
       }
+      const dt = boxes(['#driveTop'])[0];
+      if (dt) t = Math.max(t, dt.bottom + 8); // driving: the banner goes under your race panel, clear of Exit
       // A short band (a small phone upright) keeps the banner and one whole flag clear of the bottom row by
       // letting them reach up over the map; the banner then covers the flags while it shows.
       const b = px['--hud-b'] + 8, bannerH = $('banner').offsetHeight, FLAG = 80;
@@ -814,7 +828,7 @@
     }
     let layoutDue = false;
     const relayout = () => { if (!layoutDue) { layoutDue = true; requestAnimationFrame(() => { layoutDue = false; layoutHud(); }); } };
-    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar', '#driveSpeed', '#pads'].forEach((s) => ro.observe(document.querySelector(s))); }
+    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar', '#driveTop', '#driveSpeed', '#pads'].forEach((s) => ro.observe(document.querySelector(s))); }
     window.addEventListener('resize', relayout);
     syncUI();
     layoutHud();

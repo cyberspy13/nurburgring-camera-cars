@@ -33,7 +33,7 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 | `R` | Replay the last incident |
 | `P` or `Space` | Pause |
 | `M` | Sound on or off (sound starts after your first tap, click or key press) |
-| `H` | Hide the overlay |
+| `H` | Hide or show the overlay |
 | `D` | Drive a car |
 
 While driving:
@@ -46,9 +46,9 @@ While driving:
 | `C` | Chase camera or driver's seat |
 | `P` | Pause |
 
-You can also use the on-screen buttons. Weather, day/night, pause, race speed (up to 16×) and replays sit under the circuit map. Scroll to zoom the air cameras; drag to orbit the blimp. The plane camera flies alongside the banner planes.
+You can also use the on-screen buttons. Weather, day/night, pause, race speed (up to 16×), replays and the eye button that hides the overlay sit under the circuit map. Scroll to zoom the air cameras; drag to orbit the blimp. The plane camera flies alongside the banner planes.
 
-**On an iPhone or iPad** everything is a tap. To drive, tap **Drive** and tilt the device like a steering wheel (or choose the steering buttons), with Gas and Brake pedals on the screen; **Centre** sets the way you're holding it as straight ahead. Otherwise pinch the 3D view to zoom the air cameras and drag one finger to orbit the blimp. On a phone the controls sit above the map, the weather buttons open from the cloud button, and the standings open from **Standings**. Turn the phone on its side for the widest view. In Safari, Share › Add to Home Screen runs it full screen. With the iPhone's silent switch on, iOS mutes the engine sound.
+**On an iPhone or iPad** everything is a tap. Tap the 3D view (or the eye button by the sound button) to hide the overlay and see just the race; tap again, or tap **Show**, to bring it back. While you're driving, the pedals and your speed stay on screen. To drive, tap **Drive** and tilt the device like a steering wheel (or choose the steering buttons), with Gas and Brake pedals on the screen; **Centre** sets the way you're holding it as straight ahead. Otherwise pinch the 3D view to zoom the air cameras and drag one finger to orbit the blimp. On a phone the controls sit above the map, the weather buttons open from the cloud button, and the standings open from **Standings**. Turn the phone on its side for the widest view. In Safari, Share › Add to Home Screen runs it full screen. With the iPhone's silent switch on, iOS mutes the engine sound.
 
 ## Running it locally
 

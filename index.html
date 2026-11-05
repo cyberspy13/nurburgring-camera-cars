@@ -58,9 +58,11 @@
 
   .hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
   .hud > * { pointer-events: auto; }
+  /* the overlay hidden (the eye button, H, or a tap on the view on a touch screen): just the race, and the pedals when driving */
   body.hud-hidden .hud > :not(.keep) { display: none; }
   .ctrl.show-hud { position: absolute; top: var(--gut-t); right: var(--gut-r); display: none; background: var(--panel); }
   body.hud-hidden .ctrl.show-hud { display: inline-flex; }
+  body.map-off .map { visibility: hidden; } /* no room above the bottom row or the pedals (main.js, layoutHud) */
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
 
   /* top-left: brand + timing tower */
@@ -530,7 +532,9 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.16 7.84A2.6 2.6 0 1 1 8.51 6.67"/><path d="M6 1.3v1.4M1.3 6h1.4M2.7 2.7l.9.9M9.3 2.7l-.9.9"/><path d="M5.5 14h6.3a2.4 2.4 0 0 0 .2-4.8 3.1 3.1 0 0 0-5.9.9A1.95 1.95 0 0 0 5.5 14z"/></svg>
       </button>
       <span class="grow"></span>
-      <button type="button" class="ctrl" id="hudBtn" title="Hide or show the overlay (H)">HUD</button>
+      <button type="button" class="ctrl icon" id="hudBtn" aria-label="Hide the overlay" title="Hide the overlay (H). On a touch screen, tap the view.">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/><path d="m2.5 2 11 12"/></svg>
+      </button>
     </div>
     <div class="wx panel" id="wx" aria-label="Weather and time of day">
       <div class="wx-row wx-4" role="group" aria-label="Weather">
@@ -546,7 +550,9 @@
     </div>
   </div>
 
-  <button type="button" class="ctrl show-hud keep" id="showHud">Show HUD</button>
+  <button type="button" class="ctrl show-hud keep" id="showHud" title="Show the overlay (H). On a touch screen, tap the view.">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2"/></svg>Show
+  </button>
 
   <div class="banner panel" id="banner" aria-live="polite"><small id="bannerKicker">Section</small><strong id="bannerTitle">Hatzenbach</strong></div>
   <div class="flags" id="flags" aria-live="polite"></div>
@@ -642,9 +648,9 @@
       <button type="button" class="ctrl" id="dExit" title="Stop driving and go back to watching">Exit</button>
     </div>
   </section>
-  <div class="drive-speed panel" id="driveSpeed" aria-hidden="true" hidden><b id="dSpeed">0</b><small>km/h</small><span class="dgear"><small>Gear</small><b id="dGear">1</b></span><i class="drpm"><i id="dRpm"></i></i></div>
+  <div class="drive-speed panel keep" id="driveSpeed" aria-hidden="true" hidden><b id="dSpeed">0</b><small>km/h</small><span class="dgear"><small>Gear</small><b id="dGear">1</b></span><i class="drpm"><i id="dRpm"></i></i></div>
   <div class="drive-help" id="driveHelp" hidden><kbd>↑</kbd> gas · <kbd>↓</kbd> brake · <kbd>←</kbd><kbd>→</kbd> steer · <kbd>C</kbd> camera · <kbd>P</kbd> pause</div>
-  <div class="pads" id="pads" hidden>
+  <div class="pads keep" id="pads" hidden>
     <button type="button" class="pad steer" id="padLeft" aria-label="Steer left"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11 2.5v11L3 8z"/></svg></button>
     <button type="button" class="pad steer" id="padRight" aria-label="Steer right"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 2.5v11L13 8z"/></svg></button>
     <span class="gap"></span>
@@ -652,7 +658,7 @@
     <button type="button" class="pad gas" id="padGas">Gas</button>
   </div>
   <div class="turn-hint panel" aria-hidden="true">Turn your phone sideways<br>for the best view</div>
-  <div class="countdown" id="countdown" aria-live="assertive" hidden><b id="cdNum">3</b><small id="cdTip">Get ready</small></div>
+  <div class="countdown keep" id="countdown" aria-live="assertive" hidden><b id="cdNum">3</b><small id="cdTip">Get ready</small></div>
 </div>
 
 <!-- drive mode: choose a car and a race -->
