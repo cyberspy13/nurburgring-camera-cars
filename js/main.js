@@ -34,8 +34,9 @@
     const sky = NR.world.buildSky(scene, renderer);
     status('Shaping the Eifel hills…'); await nextFrame();
     const terrain = NR.world.buildTerrain(track, scene);
+    const mountains = NR.world.buildMountains(scene);
     const road = NR.world.buildRoad(track, scene);
-    status('Planting forests and filling the grandstands…'); await nextFrame();
+    status('Planting forests, filling the grandstands and letting the cows out…'); await nextFrame();
     const scenery = NR.buildScenery(track, scene);
     status('Rolling the GT3 field out…'); await nextFrame();
     const fx = NR.createFx(scene);
@@ -49,9 +50,10 @@
     const cars = race.cars;
     const audio = NR.createAudio(race);
     const weather = NR.createWeather({ scene, renderer, sky, terrain, road, race, fx, audio, scenery, track });
-    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes };
+    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes, mountains };
     fx.onCrash = (pos, s) => audio.impact?.(pos, s);
     fx.onBurst = (pos) => audio.firework?.(pos);
+    scenery.farm.onCall = (kind, pos, young) => audio.animal?.(kind, pos, young);
 
     // the rolling start: run the field for a few seconds so it is already racing on first view
     function warmUp() {
@@ -854,7 +856,7 @@
       sky.sun.position.copy(focus).addScaledVector(NR.world.SUN_DIR, 400);
       sky.sun.target.position.copy(focus);
       sky.sun.target.updateMatrixWorld();
-      scenery.update(now / 1000, focus, cars, weather.nightK);
+      scenery.update(now / 1000, focus, cars, weather.nightK, camera.position);
       renderer.render(scene, camera);
       renderTelemetry();
       renderTower(false);

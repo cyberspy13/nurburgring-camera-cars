@@ -11,6 +11,8 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 - **Parkroyal Community School**: a red-brick Victorian school beside the track after Breidscheid, with its row of gables and tall chimneys, a newer extension with the school's name in red, and a green all-weather pitch behind spear-top railings. Its pupils line the railings and go wild when the bus goes by. It's also one of the spectator stands.
 - **Banner planes**: a red plane towing COME ON PARKROYAL BUS and a white and blue one towing HELLO MACCLESFIELD circle low over whatever you're watching, so the banners keep crossing the view. At night their navigation lights come on and the banners stay lit.
 - **Swimming pools**: four pools beside the track, with people swimming laps, floating on rubber rings, sitting on the edge and standing in the water to wave at the cars.
+- **Cows and sheep**: five fenced fields beside the track. The cows (black-and-white and brown) and the sheep (with a black sheep in every flock) graze, wander, lie down (more of them at night) and lift their heads to watch the cars go by, with calves and lambs at their mothers' sides. Now and then you hear a moo or a baa. There's a farm at Metzgesfeld with a farmhouse, a red barn, hay bales and a tractor.
+- **Snowy mountains** all round the horizon, hazy in the distance, dark against the stars at night, and hidden by heavy rain and snow.
 - **A 17-lap race**: shuffled grid, slipstreaming and overtaking, tyre wear, lap times and a live timing tower.
 - **Pit stops**: every car makes one compulsory stop between laps 5 and 11, or earlier when a safety car comes out. It's a GT3 endurance stop of about 35 seconds. A ten-strong crew in team colours jacks the car up, refuels it with a fire marshal standing by, swaps the drivers, and changes all four tyres once the fuel is in, repairing any lost wing on the way. The lollipop man holds the car until the 60 km/h pit lane is clear. When the car you're following stops, the helicopter and cabin views cut to a TV camera on the pit wall.
 - **Crashes**: spins, trips across the grass and barrier hits with sparks and flying bodywork. Cars may rejoin or retire. Yellow flags go out, and a **safety car** comes out for serious incidents.
@@ -57,11 +59,12 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | File | What it does |
 | --- | --- |
 | `index.html` | The page, its layout and styles |
-| `js/world.js` | Textures, sky, terrain, road, kerbs, barriers and the pit lane |
+| `js/world.js` | Textures, sky, terrain, mountains, road, kerbs, barriers and the pit lane |
 | `js/track.js` | The circuit layout, speed profile, racing line and pit lane layout |
 | `js/scenery.js` | Grandstand, pit building, sponsor bridge, spectators, forests, village and castle |
 | `js/school.js` | Parkroyal Community School, its pitch and its pupils |
 | `js/pools.js` | The swimming pools and their swimmers |
+| `js/farm.js` | The fields, the cows and sheep, and the farm |
 | `js/models.js` | Car, bus and cockpit models: bodies, liveries, lights, wings and wheels |
 | `js/cars.js` | The field of cars, race simulation, pit stops, crashes, safety car, celebration and the handling of the car you drive |
 | `js/pits.js` | The pit crews and their kit: garage boards, box markings, fuel rigs, and each stop acted out |
@@ -70,7 +73,7 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/cameras.js` | Helicopter, blimp, banner plane, cabin, spectator and podium cameras |
 | `js/weather.js` | Weather, night lighting and headlights |
 | `js/planes.js` | The two banner planes and their flight |
-| `js/audio.js`, `js/engine-worklet.js` | Engine and effect sounds |
+| `js/audio.js`, `js/engine-worklet.js` | Engine and effect sounds, and the moos and baas |
 | `js/main.js` | Start-up, interface, drive mode (car choice, pedals, tilt steering) and the main loop |
 
 Built with [three.js](https://threejs.org/) r128. The circuit is a shortened, stylised take on the Nordschleife, and the car liveries are colour schemes only. Six follow real race cars, but none carries manufacturer or sponsor logos. The Qatar Airways bridge over the start/finish line is decoration, not a real sponsorship.

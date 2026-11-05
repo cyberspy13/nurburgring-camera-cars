@@ -278,8 +278,9 @@
   }
 
   // ---------- terrain ----------
+  const LAND = { SX: 3600, SZ: 3000, CX: -130, CZ: -70 }; // the modelled countryside: its size and centre
   function buildTerrain(track, scene) {
-    const SX = 3600, SZ = 3000, CX = -130, CZ = -70, NX = 300, NZ = 250;
+    const { SX, SZ, CX, CZ } = LAND, NX = 300, NZ = 250;
     const geo = new THREE.PlaneGeometry(SX, SZ, NX, NZ);
     geo.rotateX(-Math.PI / 2);
     geo.translate(CX, 0, CZ);
@@ -349,6 +350,69 @@
       const a = heights[i00], b = heights[i00 + 1], c = heights[i00 + NX + 1], d = heights[i00 + NX + 2];
       return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
     };
+    return mesh;
+  }
+
+  // ---------- mountains ----------
+  // A ring of snowy peaks all round the horizon, from the edge of the countryside out to 3.6 km beyond it:
+  // forested foothills, then a ridged range two to three kilometres out, up to about 800 m high. Forest at the
+  // foot, rock above, snow on the tops and gentler slopes. The scene's haze makes them look far off (and hides
+  // them in rain and snow).
+  function buildMountains(scene) {
+    const { SX, SZ, CX, CZ } = LAND, HX = SX / 2, HZ = SZ / 2;
+    const ROWS = [-90, 0, 60, 140, 240, 360, 500, 650, 800];
+    for (let u = 890; u <= 3600; u += 90) ROWS.push(u); // close rows through the peaks, or their faces streak
+    const NA = 512, nR = ROWS.length;
+    const pos = new Float32Array(NA * nR * 3), rel = new Float32Array(NA * nR);
+    for (let i = 0; i < NA; i++) {
+      const a = (i / NA) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+      const rb = Math.min(HX / Math.max(1e-6, Math.abs(ca)), HZ / Math.max(1e-6, Math.abs(sa))); // to the land's edge
+      const edgeY = NR.groundY(CX + ca * (rb - 2), CZ + sa * (rb - 2));
+      ROWS.forEach((u, r) => {
+        const x = CX + ca * (rb + u), z = CZ + sa * (rb + u);
+        let y;
+        if (u < 0) y = NR.groundY(x, z) - 45; // tucked under the land's edge
+        else {
+          const ridge = 1 - Math.abs(2 * fbm(x * 0.0019 - 9, z * 0.0019 + 23, 4) - 1);
+          const big = fbm(x * 0.0011 + 40, z * 0.0011 - 17, 4);
+          const range = smooth(900, 2300, u) * (1 - 0.6 * smooth(3000, 3600, u));
+          const hills = smooth(0, 500, u) * (50 + 170 * fbm(x * 0.003, z * 0.003, 3));
+          y = edgeY - 12 + hills + range * (260 + 520 * ridge * ridge * (0.35 + big)) + (vnoise(x * 0.01, z * 0.01) - 0.5) * 20;
+        }
+        const k = i * nR + r;
+        pos[k * 3] = x; pos[k * 3 + 1] = y; pos[k * 3 + 2] = z;
+        rel[k] = y - edgeY;
+      });
+    }
+    const idx = [];
+    for (let i = 0; i < NA; i++) {
+      const i2 = (i + 1) % NA;
+      for (let r = 0; r < nR - 1; r++) {
+        const a = i * nR + r, b = i2 * nR + r;
+        idx.push(a, b, a + 1, b, b + 1, a + 1); // facing up
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    // colour by height and steepness: forest, alpine meadow, rock, snow
+    const N = geo.attributes.normal, colors = new Float32Array(pos.length), c = new THREE.Color();
+    // (the noise is coarser than the mesh: finer colour changes would alias into stripes)
+    const forest = [col('#22382a'), col('#2c4630')], meadow = col('#5a6b45'), rock = [col('#5f5d5a'), col('#77736c')], snow = col('#e4e9f0');
+    for (let k = 0; k < NA * nR; k++) {
+      const x = pos[k * 3], z = pos[k * 3 + 2], h = rel[k], ny = N.getY(k);
+      const n = vnoise(x * 0.004, z * 0.004), n2 = vnoise(x * 0.012 + 7, z * 0.012);
+      c.copy(forest[0]).lerp(forest[1], n);
+      c.lerp(meadow, smooth(260, 360, h + n * 80) * 0.7);
+      c.lerp(rock[0].clone().lerp(rock[1], n2), smooth(330, 450, h + n * 100) * (1 - 0.3 * smooth(0.85, 0.95, ny)));
+      c.lerp(snow, smooth(470, 560, h + (n - 0.5) * 160) * smooth(0.45, 0.7, ny + (n2 - 0.5) * 0.2));
+      colors[k * 3] = c.r; colors[k * 3 + 1] = c.g; colors[k * 3 + 2] = c.b;
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+    mesh.matrixAutoUpdate = false;
+    scene.add(mesh);
     return mesh;
   }
 
@@ -506,5 +570,5 @@
     });
   }
 
-  NR.world = { merge, bake, col, smooth, hash, vnoise, fbm, rand, canvasTex, TEX, SKY, SUN_DIR, makeTextures, buildSky, buildTerrain, buildRoad };
+  NR.world = { merge, bake, col, smooth, hash, vnoise, fbm, rand, canvasTex, TEX, SKY, SUN_DIR, makeTextures, buildSky, buildTerrain, buildMountains, buildRoad };
 })();

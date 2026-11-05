@@ -1,7 +1,7 @@
 // audio.js — engine sound for every car plus the race's other noises, mixed for whichever camera is live.
 // No sound files. Engines run in an AudioWorklet (engine-worklet.js) that fires each cylinder at its
 // real crank angle into modelled exhaust pipes; where the worklet cannot start, a simpler synth built
-// from standard Web Audio nodes takes over. Tyres, crashes, fireworks, crowd and reverb are shared.
+// from standard Web Audio nodes takes over. Tyres, crashes, fireworks, crowd, farm animals and reverb are shared.
 (function () {
   'use strict';
   const NR = window.NR;
@@ -272,6 +272,49 @@
       }
       const P = peakOf(out) / 0.9;
       out.forEach((d) => { for (let i = 0; i < len; i++) d[i] /= P; });
+      return b;
+    }
+
+    // A cow's moo or a sheep's baa: a buzzing voice (a softened sawtooth with a little breath) through three
+    // mouth resonances that move as the mouth opens and closes. `v` (0..1) gives each take its own pitch and length.
+    function makeCall(moo, v) {
+      const sr = ctx.sampleRate, dur = (moo ? 1.55 : 0.9) * (0.9 + 0.2 * v), len = Math.floor(sr * dur);
+      const b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+      const sm = (a, c, x) => { const k = clamp((x - a) / (c - a), 0, 1); return k * k * (3 - 2 * k); };
+      // a two-pole resonance at fq Hz, bw Hz wide, whose centre may move from sample to sample
+      const res = (s, x, fq, bw) => {
+        const r = Math.exp((-Math.PI * bw) / sr), y = (1 - r) * x + 2 * r * Math.cos((2 * Math.PI * fq) / sr) * s[0] - r * r * s[1];
+        s[1] = s[0]; s[0] = y; return y;
+      };
+      const s1 = [0, 0], s2 = [0, 0], s3 = [0, 0];
+      let ph = 0, saw = 0, jit = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / sr, u = t / dur;
+        let f0, open, f1, f2, f3, amp, breath;
+        if (moo) {
+          // "mmm-ooo": low and nasal with the mouth shut, rising as it opens, falling away at the end
+          f0 = (84 + 10 * v + 44 * Math.sin(Math.PI * Math.pow(u, 0.8))) * (1 + 0.012 * Math.sin(2 * Math.PI * 5 * t));
+          open = sm(0.1, 0.45, u) * (1 - 0.6 * sm(0.75, 1, u));
+          f1 = 260 + 420 * open; f2 = 850 + 380 * open; f3 = 2300;
+          amp = sm(0, 0.08, u) * (1 - sm(0.82, 1, u)) * (0.45 + 0.55 * open);
+          breath = 0.05;
+        } else {
+          // "b-aa-aa": a quick start, then a wavering bleat
+          const wob = Math.sin(2 * Math.PI * (7.5 + v) * t);
+          f0 = (300 + 40 * v + 90 * Math.sin(Math.PI * Math.min(1, u * 1.6)) - 60 * u) * (1 + 0.08 * wob);
+          open = sm(0.02, 0.1, u) * (1 - 0.4 * sm(0.7, 1, u));
+          f1 = 330 + 520 * open; f2 = 1250 + 450 * open; f3 = 2700;
+          amp = sm(0, 0.04, u) * (1 - sm(0.68, 1, u)) * (0.7 + 0.3 * Math.sin(2 * Math.PI * (7.5 + v) * t + 1));
+          breath = 0.22;
+        }
+        jit = (jit + 0.002 * noise()) * 0.995; // the voice is never quite steady
+        ph += (f0 * (1 + jit)) / sr; ph -= Math.floor(ph);
+        saw += 0.3 * (1 - 2 * ph - saw);
+        const x = saw + breath * noise() * open;
+        d[i] = (res(s1, x, f1, 90) + 0.6 * res(s2, x, f2, 130) + 0.2 * res(s3, x, f3, 220)) * amp;
+      }
+      const P = peakOf([d]) / 0.85;
+      for (let i = 0; i < len; i++) d[i] /= P;
       return b;
     }
 
@@ -741,6 +784,12 @@
       if (!live() || !pos) return;
       playAt(material('firework', makeFirework), pos, 90, 0.9, 0.9 + Math.random() * 0.25, 0.4);
     }
+    // a moo or a baa from a field (farm.js); calves and lambs call higher
+    function animal(kind, pos, young) {
+      if (!live() || !pos) return;
+      const moo = kind === 'cow', v = (Math.random() * 3) | 0;
+      playAt(material((moo ? 'moo' : 'baa') + v, () => makeCall(moo, v / 2)), pos, moo ? 30 : 24, moo ? 0.6 : 0.5, (young ? 1.5 : 1) * (0.94 + Math.random() * 0.12), 0);
+    }
     // Crowd roar for the winner. The flag is kept while sound is off, so a later unmute picks it up.
     function celebrate(on) {
       celebrating = !!on;
@@ -766,7 +815,7 @@
     function status() { return !enabled ? 'off' : live() || (heard && !wanted()) ? 'on' : 'waiting'; }
 
     Object.assign(api, {
-      update, unlock, setEnabled, status, impact, firework, celebrate,
+      update, unlock, setEnabled, status, impact, firework, animal, celebrate,
       weather: (kind) => { sky = kind; },
       debug: () => ({ ctx, master, voices, engine, via }),
     });

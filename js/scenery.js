@@ -963,11 +963,12 @@
       scene.add(board);
     });
 
-    // ---------- Parkroyal Community School and the swimming pools (school.js, pools.js) ----------
+    // ---------- Parkroyal Community School, the swimming pools and the farm fields (school.js, pools.js, farm.js) ----------
     const clearings = []; // ground the forests leave alone: { x, z, r }
-    const ctx = { track, scene, crowd, W, std, add, textTex, alignAt, flags, poleMat, clearOfCams, site, clear: (x, z, r) => clearings.push({ x, z, r }) };
+    const ctx = { track, scene, crowd, W, std, add, textTex, alignAt, flags, poleMat, clearOfCams, site, spots, clearings, castle: CASTLE, clear: (x, z, r) => clearings.push({ x, z, r }) };
     const school = NR.buildSchool(ctx, spots.find((sp) => sp.school));
     const pools = NR.buildPools(ctx);
+    const farm = NR.buildFarm(ctx);
 
     // ---------- forests ----------
     const { merge } = NR.world;
@@ -1022,8 +1023,9 @@
 
     crowd.finish();
 
-    // nightK: 0 by day, 1 at night (weather.js), for the school's windows and the pool lights
-    function update(t, focusPos, cars, nightK) {
+    // nightK: 0 by day, 1 at night (weather.js), for the school's windows, the pool lights and sleepy animals;
+    // camPos: where the camera is, for the animals' calls
+    function update(t, focusPos, cars, nightK, camPos) {
       // spots get louder as cars approach (cameras.js may also set this)
       if (cars) spots.forEach((sp) => {
         let dmin = 1e9;
@@ -1034,6 +1036,7 @@
       flags.forEach((f) => { f.rotation.y = Math.sin(t * 1.6 + f.userData.ph) * 0.5; });
       school.update(t, nightK || 0);
       pools.update(t, nightK || 0);
+      farm.update(t, focusPos, cars, nightK || 0, camPos);
     }
 
     // the pupils on the open-top bus: a crowd area riding on its deck (models.js lists their seats)
@@ -1046,7 +1049,7 @@
     }
 
     return {
-      spots, update, castle: CASTLE, sfPos, standInfo, school, pools, addRiders,
+      spots, update, castle: CASTLE, sfPos, standInfo, school, pools, farm, addRiders,
       busCheer: (len) => { if (riders) crowd.cheer(riders, len || 3); },
       setCelebration: crowd.setCelebration,
       react: crowd.react,
