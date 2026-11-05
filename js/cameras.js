@@ -1,4 +1,4 @@
-// cameras.js — Air (helicopter / blimp / banner plane), Cabin and Spectator camera rigs.
+// cameras.js — Air (helicopter / blimp / banner plane), Cabin and Spectator camera rigs, and the chase camera for drive mode.
 (function () {
   'use strict';
   const NR = (window.NR = window.NR || {});
@@ -18,8 +18,8 @@
     const tmpQ = new THREE.Quaternion(), euler = new THREE.Euler();
     let snap = true, specFov = 30, specTarget = null;
     const blimp = { theta: 0.6, zoom: 1, el: 0.95 };
-    const heliZoom = { k: 1 }, planeZoom = { k: 1 };
-    const planeCam = new THREE.Vector3(), planeLook = new THREE.Vector3();
+    const heliZoom = { k: 1 }, planeZoom = { k: 1 }, chaseZoom = { k: 1 };
+    const planeCam = new THREE.Vector3(), planeLook = new THREE.Vector3(), chaseCam = new THREE.Vector3(), chaseLook = new THREE.Vector3();
     let cabinCar = null;
 
     // markers visible from the blimp
@@ -116,6 +116,19 @@
         camera.lookAt(heliLook);
         camera.fov = 50;
         focusPos.copy(c.world);
+      } else if (state.mode === 'chase') {
+        // drive mode: low behind the player's car, looking down the road; well back and up over the bus's top deck
+        const bus = c.type === 'bus';
+        v.copy(c.world).addScaledVector(c.fwd, -(bus ? 15 : 6.6) * chaseZoom.k);
+        v.y += (bus ? 6.6 : 2.0) * chaseZoom.k;
+        v.y = Math.max(v.y, NR.groundY(v.x, v.z) + 0.8);
+        v2.copy(c.world).addScaledVector(c.fwd, bus ? 16 : 8); v2.y += bus ? 2.2 : 0.9;
+        if (snap) { chaseCam.copy(v); chaseLook.copy(v2); }
+        chaseCam.lerp(v, 1 - Math.exp(-dt * 10)); chaseLook.lerp(v2, 1 - Math.exp(-dt * 12));
+        camera.position.copy(chaseCam);
+        camera.lookAt(chaseLook);
+        camera.fov = 58 + Math.min(10, c.v * 0.12); // a wider view the faster you go
+        focusPos.copy(c.world);
       } else if (state.mode === 'air' && state.air === 'plane') {
         // alongside the banner planes (planes.js), eased so the banners glide through the frame
         planes.view(planeZoom.k, v, v2);
@@ -195,6 +208,7 @@
     // pointer controls: drag to orbit the blimp; the wheel or a pinch (main.js) zooms heli / blimp / plane.
     // k scales the camera's distance: below 1 moves in.
     function zoom(k) {
+      if (state.mode === 'chase') { chaseZoom.k = THREE.MathUtils.clamp(chaseZoom.k * k, 0.7, 2.2); return; }
       if (state.mode !== 'air') return;
       if (state.air === 'blimp') blimp.zoom = THREE.MathUtils.clamp(blimp.zoom * k, 0.35, 1.4);
       else if (state.air === 'plane') planeZoom.k = THREE.MathUtils.clamp(planeZoom.k * k, 0.4, 2.5);

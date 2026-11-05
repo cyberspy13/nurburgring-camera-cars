@@ -176,10 +176,10 @@
   .res-list .g, .res-list .bl { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right; color: var(--muted); }
   .res-list li:first-child .g { color: var(--signal); }
   .res-list li.out { opacity: 0.5; }
+  .res-list li.you { background: rgba(255, 210, 63, 0.16); border-radius: 4px; }
   .res-actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .ctrl.primary { background: var(--signal); color: var(--signal-ink); border-color: var(--signal); }
   .res-pill { position: absolute; top: var(--gut-t); left: var(--gut-l); background: var(--panel); }
-  body.ceremony .modes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .fade { position: fixed; inset: 0; z-index: 4; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.6s; }
   .fade.on { opacity: 1; }
 
@@ -197,7 +197,7 @@
   .icon-btn svg { width: 16px; height: 16px; }
 
   .dock { padding: 8px; display: grid; gap: 8px; justify-items: center; }
-  .modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } /* air, cabin, spectators, and drive (podium instead, after the race) */
   .mode { display: grid; justify-items: center; gap: 3px; min-width: 112px; padding: 9px 12px 8px; border-radius: 5px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-family: var(--font-display); }
   .mode svg { width: 26px; height: 26px; }
   .mode b { font-size: 17px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; }
@@ -302,7 +302,7 @@
     .t-head span:first-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .mode { padding: 6px; }
     .mode svg { width: 22px; height: 22px; }
-    .mode b { font-size: 15px; }
+    .mode b { font-size: 13px; letter-spacing: 0.03em; }
     .speedo .v { font-size: 30px; }
     .gear b { font-size: 22px; }
     .banner strong { font-size: 22px; }
@@ -361,8 +361,110 @@
   @media (hover: none) {
     .keys { display: none; } /* no keyboard, as a rule */
   }
+
+  /* ---------- drive mode (main.js): the setup panel, the race from the driver's point of view, touch pedals ---------- */
+  .mode.drive-mode { border-color: var(--signal); color: var(--signal); }
+  .mode.drive-mode small { color: rgba(255, 210, 63, 0.78); }
+  body.ceremony .mode.drive-mode { display: none; }
+  body.driving .bottom, body.driving .keys, body.driving .flags, body.driving .replaybar { display: none; }
+  body.ceremony .drive-top, body.ceremony .drive-speed, body.ceremony .drive-help, body.ceremony .pads { display: none; } /* the results panel takes over */
+  .drive-top { position: absolute; top: var(--gut-t); left: 50%; transform: translateX(-50%); box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 10px 8px 16px; }
+  .dt-stat { display: grid; font-family: var(--font-display); min-width: 52px; }
+  .dt-stat small { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .dt-stat b { font-size: 30px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dt-stat b span { font-size: 16px; color: var(--muted); font-weight: 600; margin-left: 2px; }
+  .dt-btns { display: flex; gap: 6px; }
+  .drive-speed { position: absolute; left: 50%; bottom: var(--gut-b); transform: translateX(-50%); display: grid; grid-template-columns: auto auto 1fr; align-items: end; column-gap: 6px; padding: 8px 14px 12px; font-family: var(--font-display); width: 230px; pointer-events: none; }
+  .drive-speed > b { font-size: 52px; line-height: 0.9; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .drive-speed > small { font-size: 14px; color: var(--muted); padding-bottom: 3px; }
+  .dgear { justify-self: end; display: grid; justify-items: center; border: 1px solid var(--line); border-radius: 4px; padding: 2px 10px 4px; }
+  .dgear small { font-size: 10px; letter-spacing: 0.16em; color: var(--muted); text-transform: uppercase; }
+  .dgear b { font-size: 28px; line-height: 1; font-weight: 800; }
+  .drpm { grid-column: 1 / -1; display: block; height: 6px; margin-top: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 3px; overflow: hidden; }
+  .drpm i { display: block; height: 100%; background: linear-gradient(90deg, #3ecf6e 0 55%, var(--signal) 55% 85%, var(--live) 85%); transform-origin: left; transform: scaleX(0.3); }
+  .drive-help { position: absolute; left: 50%; bottom: calc(var(--gut-b) + 112px); transform: translateX(-50%); font-size: 12px; color: rgba(238, 242, 245, 0.75); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); white-space: nowrap; pointer-events: none; }
+  .drive-help kbd { font-family: var(--font-display); font-weight: 600; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 3px; padding: 0 5px; margin: 0 2px; }
+  @media (hover: none) { .drive-help { display: none !important; } }
+  /* pedals: brake on the left and gas on the right when tilting to steer; steering buttons on the left otherwise */
+  .pads { position: absolute; left: var(--gut-l); right: var(--gut-r); bottom: var(--gut-b); display: flex; align-items: flex-end; gap: 12px; pointer-events: none; }
+  .pads .gap { flex: 1; }
+  .pad { pointer-events: auto; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; width: 92px; height: 92px; display: grid; place-items: center; padding: 0; border-radius: 18px; border: 2px solid rgba(255, 255, 255, 0.3); background: rgba(10, 14, 19, 0.55); color: var(--text); font-family: var(--font-display); font-weight: 800; font-size: 18px; letter-spacing: 0.08em; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .pad.gas { height: 132px; border-color: rgba(62, 207, 110, 0.75); }
+  .pad.brake { border-color: rgba(229, 50, 45, 0.75); }
+  .pad.steer svg { width: 34px; height: 34px; }
+  .pad.on { background: rgba(255, 255, 255, 0.3); transform: scale(0.96); }
+  .pad.gas.on { background: rgba(62, 207, 110, 0.55); }
+  .pad.brake.on { background: rgba(229, 50, 45, 0.55); }
+  .pads.tilt .steer { display: none; }
+  .pads.tilt .brake { order: -1; }
+  .countdown { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; justify-items: center; gap: 6px; pointer-events: none; }
+  .countdown b { font-family: var(--font-display); font-weight: 800; font-size: 150px; line-height: 1; color: var(--signal); text-shadow: 0 6px 30px rgba(0, 0, 0, 0.6); }
+  .countdown small { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: 0.12em; text-transform: uppercase; color: #fff; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85); }
+  .countdown.go b { color: #3ecf6e; }
+  .turn-hint { display: none; }
+  @keyframes hint-out { to { opacity: 0; visibility: hidden; } }
+  /* the setup panel */
+  .drive-setup { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; padding: max(12px, var(--gut-t)) var(--gut-r) max(12px, var(--gut-b)) var(--gut-l); background: rgba(5, 8, 12, 0.62); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  .ds-panel { width: min(780px, 100%); max-height: 100%; overflow: auto; overscroll-behavior: contain; background: var(--panel-solid); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; display: grid; gap: 14px; }
+  .ds-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .ds-head small { font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--signal); }
+  .ds-head h2 { margin: 2px 0 0; font-family: var(--font-display); font-weight: 800; font-size: 32px; line-height: 1; text-transform: uppercase; }
+  .ds-field { border: 0; margin: 0; padding: 0; min-width: 0; }
+  .ds-field legend { padding: 0; margin-bottom: 6px; font-family: var(--font-display); font-weight: 600; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .ds-cars { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+  .ds-car { position: relative; display: grid; grid-template-columns: 6px 1fr; column-gap: 9px; align-items: center; min-height: 44px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 6px; background: rgba(255, 255, 255, 0.03); cursor: pointer; }
+  .ds-car input, .ds-seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .ds-car .sw { grid-row: span 2; align-self: stretch; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+  .ds-car b { font-family: var(--font-display); font-size: 16px; line-height: 1.1; }
+  .ds-car small { font-size: 11px; line-height: 1.25; color: var(--muted); }
+  .ds-car:has(input:checked) { border-color: var(--signal); background: rgba(255, 210, 63, 0.13); }
+  .ds-car:has(input:focus-visible), .ds-seg label:has(input:focus-visible) { outline: 2px solid var(--signal); outline-offset: 2px; }
+  .ds-opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+  .ds-seg { display: flex; gap: 6px; }
+  .ds-seg label { position: relative; flex: 1; }
+  .ds-seg span { display: grid; place-items: center; align-content: center; min-height: 44px; padding: 4px 8px; text-align: center; border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-display); font-weight: 700; font-size: 15px; line-height: 1.1; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+  .ds-seg span small { font-weight: 500; font-size: 11px; letter-spacing: 0.04em; text-transform: none; color: var(--muted); }
+  .ds-seg input:checked + span { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+  .ds-seg input:checked + span small { color: rgba(26, 20, 0, 0.72); }
+  .ds-check { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .ds-check input { width: 20px; height: 20px; accent-color: var(--signal); }
+  .ds-help { margin: 0; font-size: 13px; color: var(--muted); }
+  .ds-actions { position: sticky; bottom: -18px; display: flex; justify-content: flex-end; gap: 8px; margin: 0 -20px -18px; padding: 10px 20px 14px; background: var(--panel-solid); border-top: 1px solid var(--line); } /* Start always in view */
+  .ds-actions .ctrl { height: 44px; padding: 0 22px; font-size: 16px; }
+  /* drive mode on smaller screens: the race panel takes the title's corner; smaller pedals */
+  @media (max-width: 860px), (max-height: 500px) {
+    body.driving .left { display: none; }
+    .drive-top { left: var(--gut-l); transform: none; max-width: calc(100% - var(--gut-l) - var(--gut-r) - 164px); padding: 6px 8px 6px 12px; gap: 6px 12px; }
+    .dt-stat b { font-size: 24px; }
+    .dt-stat b span { font-size: 13px; }
+  }
+  @media (max-height: 500px) and (min-width: 561px) {
+    .ds-panel { padding: 12px 16px; gap: 10px; }
+    .ds-actions { bottom: -12px; margin: 0 -16px -12px; padding: 8px 16px 10px; }
+    .ds-head h2 { font-size: 24px; }
+    .ds-cars { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+    .ds-car small { display: none; }
+    .pad { width: 80px; height: 80px; }
+    .pad.gas { height: 112px; }
+    .drive-speed { width: 200px; padding: 6px 12px 10px; }
+    .drive-speed > b { font-size: 42px; }
+  }
+  @media (max-width: 560px) {
+    .pad { width: 74px; height: 74px; font-size: 15px; border-radius: 14px; }
+    .pad.gas { height: 104px; }
+    .pads { gap: 8px; }
+    .drive-speed { bottom: calc(var(--gut-b) + 116px); width: 190px; }
+    .drive-speed > b { font-size: 40px; }
+    .dt-stat:nth-child(3) { display: none; }
+    .dt-btns .ctrl { padding: 0 7px; font-size: 12px; letter-spacing: 0.02em; }
+    body.driving .turn-hint { display: block; position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 10px 14px; font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; pointer-events: none; animation: hint-out 0.6s ease 5s forwards; }
+    .ds-head h2 { font-size: 26px; }
+    .ds-cars { grid-template-columns: 1fr 1fr; }
+    .ds-car b { font-size: 15px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .banner, .live::before, .bar::after { animation: none; transition: none; }
+    .pad.on { transform: none; }
   }
 </style>
 </head>
@@ -458,14 +560,14 @@
   </section>
 
   <section class="results panel" id="results" aria-label="Race result" hidden>
-    <div class="res-head"><small>Chequered flag · 17 laps</small><h2>Winner</h2></div>
+    <div class="res-head"><small id="resKicker">Chequered flag · 17 laps</small><h2>Winner</h2></div>
     <div class="res-winner"><span id="resSwatch"></span><div><b id="resName">#59 McLaren 720S GT3 EVO</b><span id="resMeta"></span></div></div>
     <ol class="res-list" id="resList"></ol>
-    <div class="res-actions"><button type="button" class="ctrl primary" id="restartBtn">Restart race</button><button type="button" class="ctrl" id="resHide">Watch the celebration</button></div>
+    <div class="res-actions"><button type="button" class="ctrl primary" id="restartBtn">Restart race</button><button type="button" class="ctrl" id="resHide">Watch the celebration</button><button type="button" class="ctrl" id="resExit" hidden>Stop driving</button></div>
   </section>
   <button type="button" class="ctrl res-pill" id="resShow" hidden>Results</button>
 
-  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp / plane</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span></div>
+  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp / plane</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span> · <span><kbd>D</kbd> drive a car</span></div>
 
   <div class="bottom">
     <section class="focus panel" aria-label="Car you are following">
@@ -491,6 +593,10 @@
         <button type="button" class="mode" data-mode="ceremony" id="podiumBtn" aria-pressed="false" hidden>
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10v6a5 5 0 0 1-10 0z"/><path d="M11 7H7a3 3 0 0 0 4 4M21 7h4a3 3 0 0 1-4 4M16 16v4M11 24h10M13 20h6v4h-6z"/></svg>
           <b>Podium</b><small>Celebration</small>
+        </button>
+        <button type="button" class="mode drive-mode" id="driveBtn" aria-haspopup="dialog" title="Drive a car yourself (D)">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="2.6"/><path d="M5.3 13.5c3.4-1.4 7-2 10.7-2s7.3.6 10.7 2M14 18.5l-3.5 7.8M18 18.5l3.5 7.8"/></svg>
+          <b>Drive</b><small>Play the race</small>
         </button>
       </div>
       <div class="sub" id="subAir">
@@ -523,6 +629,58 @@
         <div><small>Best</small><span id="tBest">–:––.–––</span></div>
       </div>
     </section>
+  </div>
+
+  <!-- drive mode (main.js): your race, the speedo, pedals for touch screens, the countdown -->
+  <section class="drive-top panel" id="driveTop" aria-label="Your race" hidden>
+    <div class="dt-stat"><small>Position</small><b id="dPos">P13<span>/13</span></b></div>
+    <div class="dt-stat"><small>Lap</small><b id="dLap">1<span>/5</span></b></div>
+    <div class="dt-stat"><small>Lap time</small><b id="dTime">0:00.0</b></div>
+    <div class="dt-btns">
+      <button type="button" class="ctrl" id="dView" title="Chase camera or driver's seat (C)">Cockpit</button>
+      <button type="button" class="ctrl" id="dCentre" title="Make the way you're holding it now straight ahead" hidden>Centre</button>
+      <button type="button" class="ctrl" id="dExit" title="Stop driving and go back to watching">Exit</button>
+    </div>
+  </section>
+  <div class="drive-speed panel" id="driveSpeed" aria-hidden="true" hidden><b id="dSpeed">0</b><small>km/h</small><span class="dgear"><small>Gear</small><b id="dGear">1</b></span><i class="drpm"><i id="dRpm"></i></i></div>
+  <div class="drive-help" id="driveHelp" hidden><kbd>↑</kbd> gas · <kbd>↓</kbd> brake · <kbd>←</kbd><kbd>→</kbd> steer · <kbd>C</kbd> camera · <kbd>P</kbd> pause</div>
+  <div class="pads" id="pads" hidden>
+    <button type="button" class="pad steer" id="padLeft" aria-label="Steer left"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11 2.5v11L3 8z"/></svg></button>
+    <button type="button" class="pad steer" id="padRight" aria-label="Steer right"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5 2.5v11L13 8z"/></svg></button>
+    <span class="gap"></span>
+    <button type="button" class="pad brake" id="padBrake">Brake</button>
+    <button type="button" class="pad gas" id="padGas">Gas</button>
+  </div>
+  <div class="turn-hint panel" aria-hidden="true">Turn your phone sideways<br>for the best view</div>
+  <div class="countdown" id="countdown" aria-live="assertive" hidden><b id="cdNum">3</b><small id="cdTip">Get ready</small></div>
+</div>
+
+<!-- drive mode: choose a car and a race -->
+<div class="drive-setup" id="driveSetup" hidden>
+  <div class="ds-panel" role="dialog" aria-modal="true" aria-labelledby="dsTitle">
+    <div class="ds-head">
+      <div><small>Play the race</small><h2 id="dsTitle">Drive a car</h2></div>
+      <button type="button" class="icon-btn" id="dsClose" aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button>
+    </div>
+    <fieldset class="ds-field"><legend>Choose your car</legend><div class="ds-cars" id="dsCars"></div></fieldset>
+    <div class="ds-opts">
+      <fieldset class="ds-field"><legend>Race</legend><div class="ds-seg">
+        <label><input type="radio" name="dsLaps" value="5" checked><span>5 laps<small>Quick race</small></span></label>
+        <label><input type="radio" name="dsLaps" value="17"><span>17 laps<small>Full race</small></span></label>
+      </div></fieldset>
+      <fieldset class="ds-field"><legend>Rivals</legend><div class="ds-seg">
+        <label><input type="radio" name="dsAi" value="0.88" checked><span>Easy</span></label>
+        <label><input type="radio" name="dsAi" value="0.94"><span>Normal</span></label>
+        <label><input type="radio" name="dsAi" value="1"><span>Hard</span></label>
+      </div></fieldset>
+      <fieldset class="ds-field" id="dsSteer" hidden><legend>Steering</legend><div class="ds-seg">
+        <label><input type="radio" name="dsSteerBy" value="tilt" checked><span>Tilt<small>the iPad or phone</small></span></label>
+        <label><input type="radio" name="dsSteerBy" value="buttons"><span>Buttons<small>left and right</small></span></label>
+      </div>
+      <label class="ds-check"><input type="checkbox" id="dsFlip"> Steering backwards? Flip the tilt</label></fieldset>
+    </div>
+    <p class="ds-help" id="dsHelp">You start at the back of the grid. Can you win? <span class="ds-keys">Keyboard: ↑ gas, ↓ brake, ← → steer, C camera.</span></p>
+    <div class="ds-actions"><button type="button" class="ctrl" id="dsCancel">Cancel</button><button type="button" class="ctrl primary" id="dsStart">Start race</button></div>
   </div>
 </div>
 

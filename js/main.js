@@ -46,7 +46,7 @@
     const planes = NR.createPlanes(scene);
     const cams = NR.createCameras(camera, race, scenery, track, scene, planes);
     const replay = NR.createReplay(race, fx, track, camera);
-    const cars = race.cars, TOTAL = race.TOTAL_LAPS;
+    const cars = race.cars;
     const audio = NR.createAudio(race);
     const weather = NR.createWeather({ scene, renderer, sky, terrain, road, race, fx, audio, scenery, track });
     NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes };
@@ -92,7 +92,8 @@
       $('cabinName').textContent = `#${c.num} ${c.brand} ${c.model}`;
       $('speedSel').value = String(speed);
       $('autoReplay').setAttribute('aria-pressed', String(autoReplay));
-      $('replayBtn').disabled = !replay.clips.length;
+      $('replayBtn').disabled = !replay.clips.length || !!driving;
+      syncDriveUI();
       document.querySelectorAll('[data-wx]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.wx === weather.kind)));
       document.querySelectorAll('[data-tod]').forEach((b) => b.setAttribute('aria-pressed', String((b.dataset.tod === 'night') === weather.night)));
       document.body.dataset.mode = st.mode + (st.mode === 'air' ? '-' + st.air : '');
@@ -105,6 +106,7 @@
       syncUI();
     }
     function setFocus(i) {
+      if (driving) return; // the camera stays on your car
       if (replay.active) replay.stop();
       let n = (i + cars.length) % cars.length;
       const dir = i < st.focus ? -1 : 1;
@@ -177,11 +179,11 @@
     $('replayBtn').addEventListener('click', () => playClip(replay.clips[replay.clips.length - 1]));
     $('skipReplay').addEventListener('click', () => { queue.length = 0; replay.stop(); });
     $('autoReplay').addEventListener('click', () => { autoReplay = !autoReplay; syncUI(); });
-    function playClip(clip) { if (clip && race.phase !== 'ceremony') replay.start(clip); }
+    function playClip(clip) { if (clip && race.phase !== 'ceremony' && !driving) replay.start(clip); }
     replay.onClip = (clip) => {
       flagReplayReady(clip);
-      $('replayBtn').disabled = false;
-      if (!autoReplay || race.phase === 'ceremony') return;
+      $('replayBtn').disabled = !!driving;
+      if (!autoReplay || race.phase === 'ceremony' || driving) return;
       if (replay.active) queue.push(clip); else replay.start(clip);
     };
     replay.onState = (on, clip) => {
@@ -267,11 +269,11 @@
           break;
         }
         case 'leaderLap':
-          if (ev.lap === TOTAL) showBanner('Final lap', `#${c.num} ${c.brand} leads`, 3);
-          else showBanner(`Lap ${ev.lap} of ${TOTAL}`, `Leader #${c.num} ${c.brand}`, 1);
+          if (ev.lap === race.TOTAL_LAPS) showBanner('Final lap', `#${c.num} ${c.brand} leads`, 3);
+          else showBanner(`Lap ${ev.lap} of ${race.TOTAL_LAPS}`, `Leader #${c.num} ${c.brand}`, 1);
           break;
         case 'win':
-          showBanner(`#${c.num} ${c.brand} wins!`, 'Chequered flag', 4);
+          showBanner(c === race.player ? 'You win!' : `#${c.num} ${c.brand} wins!`, 'Chequered flag', 4);
           document.body.classList.add('chequered');
           scenery.setCelebration?.(true);
           audio.celebrate?.(true);
@@ -279,7 +281,8 @@
           if (st.mode !== 'spectator') setFocus(c.idx);
           break;
         case 'finish':
-          if (ev.rank > 1 && (c.idx === st.focus || ev.rank <= 3)) showBanner(`#${c.num} ${c.brand} finishes P${ev.rank}`, 'Chequered flag', 2);
+          if (c === race.player && ev.rank > 1) showBanner(`You finished P${ev.rank}!`, `Chequered flag · #${c.num} ${c.brand}`, 5);
+          else if (ev.rank > 1 && (c.idx === st.focus || ev.rank <= 3)) showBanner(`#${c.num} ${c.brand} finishes P${ev.rank}`, 'Chequered flag', 2);
           break;
         case 'raceover':
           ceremonyIn = 3.5;
@@ -330,28 +333,37 @@
       const fastest = cars.filter((c) => c.bestLap).sort((a, b) => a.bestLap - b.bestLap)[0];
       $('resSwatch').style.background = w.base;
       $('resName').textContent = `#${w.num} ${w.brand} ${w.model}`;
-      $('resMeta').textContent = `${TOTAL} laps in ${fmtRace(w.finishTime)}` + (fastest ? ` · Fastest lap ${fmtLap(fastest.bestLap)} (#${fastest.num} ${fastest.brand})` : '');
+      $('resMeta').textContent = `${race.TOTAL_LAPS} laps in ${fmtRace(w.finishTime)}` + (fastest ? ` · Fastest lap ${fmtLap(fastest.bestLap)} (#${fastest.num} ${fastest.brand})` : '');
+      $('resKicker').textContent = `Chequered flag · ${race.TOTAL_LAPS} laps`;
       $('resList').innerHTML = order.map((c) => {
         const res = c.out ? 'DNF' : c.finishRank === 1 ? fmtRace(c.finishTime) : c.lapsDown ? `+${plural(c.lapsDown, 'lap')}` : '+' + (c.finishTime - w.finishTime).toFixed(3);
-        return `<li class="${c.out ? 'out' : ''}"><span class="p">${c.out ? '–' : c.pos}</span><span class="sw" style="background:${c.base}"></span>` +
-          `<span class="n">${c.num}</span><span class="b">${esc(c.brand)}</span><span class="g">${res}</span><span class="bl">${fmtLap(c.bestLap)}</span></li>`;
+        const you = c === race.player;
+        return `<li class="${c.out ? 'out' : ''}${you ? ' you' : ''}"><span class="p">${c.out ? '–' : c.pos}</span><span class="sw" style="background:${c.base}"></span>` +
+          `<span class="n">${c.num}</span><span class="b">${esc(c.brand)}${you ? ' (you)' : ''}</span><span class="g">${res}</span><span class="bl">${fmtLap(c.bestLap)}</span></li>`;
       }).join('');
       $('results').hidden = false; $('resShow').hidden = true;
     }
     $('resHide').addEventListener('click', () => { $('results').hidden = true; $('resShow').hidden = false; });
     $('resShow').addEventListener('click', () => { $('results').hidden = false; $('resShow').hidden = true; });
-    $('restartBtn').addEventListener('click', () => fade(() => {
+    // clear away the last race: replays, flags, the celebration
+    function clearStage() {
       replay.reset(); queue.length = 0;
       flags.forEach((f) => f.el.remove()); flags.length = 0;
-      race.reset(); warmUp();
       document.body.classList.remove('ceremony', 'chequered', 'sc-out');
       $('podiumBtn').hidden = true; $('results').hidden = true; $('resShow').hidden = true;
       scenery.setCelebration?.(false); audio.celebrate?.(false);
       fireworksOn = false; ceremonyIn = -1;
-      st.focus = 0; cams.setMode('air');
-      showBanner(`Lap 1 of ${TOTAL}`, 'Green flag', 3);
-      syncUI();
-    }));
+    }
+    $('restartBtn').addEventListener('click', () => {
+      if (driving) { startDrive(driving); return; }
+      fade(() => {
+        clearStage();
+        race.reset(); warmUp();
+        st.focus = 0; cams.setMode('air');
+        showBanner(`Lap 1 of ${race.TOTAL_LAPS}`, 'Green flag', 3);
+        syncUI();
+      });
+    });
     const PALETTE = ['#ffd23f', '#e5322d', '#ffffff', '#3fb6ff', '#22c55e', '#ff7a00', '#c084fc'];
     function celebrate(dt) {
       if (!fireworksOn) return;
@@ -384,6 +396,11 @@
     const AIRS = ['heli', 'blimp', 'plane'];
     window.addEventListener('keydown', (e) => {
       if (e.target.closest && e.target.closest('select')) return;
+      if (!$('driveSetup').hidden) { if (e.key === 'Escape') closeSetup(); return; }
+      if (driving) {
+        if (driveKeys(e, true)) { e.preventDefault(); return; }
+        if (!/^[pPhHmMnN ]$/.test(e.key)) return; // pause, overlay, sound and night still work
+      }
       const k = e.key;
       if (k === '1') setMode('air');
       else if (k === '2') setMode('cabin');
@@ -398,6 +415,7 @@
       else if (k === 'n' || k === 'N') setWeather(weather.kind, !weather.night);
       else if (k === 'r' || k === 'R') { if (replay.active) replay.stop(); else playClip(replay.clips[replay.clips.length - 1]); }
       else if (k === 'Escape' && replay.active) { queue.length = 0; replay.stop(); }
+      else if (k === 'd' || k === 'D') openSetup();
       else return;
     });
     // On the 3D view a mouse drag or one finger turns the blimp; the wheel or a two-finger pinch zooms.
@@ -470,10 +488,195 @@
         want.forEach((li, i) => { if (li !== keep) k < 0 || i > k ? towerList.appendChild(li) : towerList.insertBefore(li, keep); });
       }
       const ph = race.phase;
-      $('lapNow').textContent = ph === 'race' ? `Lap ${Math.min(TOTAL, leader.lap)}/${TOTAL}` : 'Chequered flag';
+      $('lapNow').textContent = ph === 'race' ? `Lap ${Math.min(race.TOTAL_LAPS, leader.lap)}/${race.TOTAL_LAPS}` : 'Chequered flag';
       const scp = race.scPhase;
       $('scBadge').hidden = scp === 'none';
       $('scBadge').textContent = scp === 'deployed' ? 'Safety car' : scp === 'ending' ? 'SC in this lap' : 'Restart';
+    }
+
+    // ---------- drive mode ----------
+    // Pick a car and race it: from the back of a standing grid, against rivals at the chosen pace, over a
+    // quick 5 laps or the full race. The arrows or WASD drive it; on a phone or iPad, tilt to steer (or use
+    // the buttons) with pedals on the screen. Exit goes back to watching, exactly as before.
+    let driving = null, countdown = 0, goT = 0, steerKeys = 0;
+    const held = { gas: false, brake: false, left: false, right: false }; // keyboard
+    const pad = { gas: false, brake: false, left: false, right: false };  // touch pedals and buttons
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+    // the setup panel
+    $('dsCars').innerHTML = cars.map((c, i) => `<label class="ds-car"><input type="radio" name="dsCar" value="${i}"><span class="sw" style="background:${c.base}"></span>` +
+      `<b>#${c.num} ${esc(c.brand)}</b><small>${esc(c.type === 'bus' ? 'Open-top bus · a bit slower' : c.model)}</small></label>`).join('');
+    $('dsSteer').hidden = !coarse;
+    document.querySelector('.ds-keys').hidden = coarse;
+    let setupFrom = null;
+    function openSetup() {
+      if (replay.active) { queue.length = 0; replay.stop(); }
+      const pick = document.querySelector(`input[name="dsCar"][value="${driving ? driving.idx : st.focus}"]`);
+      pick.checked = true;
+      setupFrom = document.activeElement;
+      $('driveSetup').hidden = false;
+      pick.focus();
+    }
+    function closeSetup() {
+      $('driveSetup').hidden = true;
+      if (setupFrom && setupFrom.focus) setupFrom.focus();
+    }
+    const radio = (name) => document.querySelector(`input[name="${name}"]:checked`).value;
+    $('driveBtn').addEventListener('click', openSetup);
+    $('dsClose').addEventListener('click', closeSetup);
+    $('dsCancel').addEventListener('click', closeSetup);
+    $('driveSetup').addEventListener('click', (e) => { if (e.target === $('driveSetup')) closeSetup(); });
+    $('driveSetup').addEventListener('keydown', (e) => { // keep Tab inside the panel
+      if (e.key !== 'Tab') return;
+      const f = [...$('driveSetup').querySelectorAll('button, input')].filter((el) => !el.closest('[hidden]') && (el.type !== 'radio' || el.checked));
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    $('dsStart').addEventListener('click', () => {
+      const o = { idx: +radio('dsCar'), laps: +radio('dsLaps'), ai: +radio('dsAi'), steerBy: coarse ? radio('dsSteerBy') : 'keys', flip: $('dsFlip').checked };
+      // iOS asks before a page may read the tilt, and only from a tap
+      const DM = window.DeviceMotionEvent;
+      if (o.steerBy === 'tilt' && DM && typeof DM.requestPermission === 'function') {
+        DM.requestPermission().then((r) => { if (r !== 'granted') o.steerBy = 'buttons'; startDrive(o); }, () => { o.steerBy = 'buttons'; startDrive(o); });
+      } else {
+        if (o.steerBy === 'tilt' && !DM) o.steerBy = 'buttons';
+        startDrive(o);
+      }
+    });
+
+    function startDrive(o) {
+      closeSetup();
+      driving = o;
+      fade(() => {
+        clearStage();
+        race.setDrive({ idx: o.idx, laps: o.laps, ai: o.ai });
+        race.render(0); pits.update();
+        st.focus = o.idx; cams.setMode(o.view || 'chase');
+        document.body.classList.add('driving');
+        countdown = 3.6; goT = 0;
+        if (o.steerBy === 'tilt') startTilt(o.flip); else stopTilt();
+        syncUI();
+      });
+    }
+    function exitDrive() {
+      if (!driving) return;
+      fade(() => {
+        driving = null; stopTilt(); countdown = 0;
+        clearStage();
+        race.setDrive(null); warmUp();
+        document.body.classList.remove('driving');
+        cams.setMode('air');
+        showBanner(`Lap 1 of ${race.TOTAL_LAPS}`, 'Green flag', 3);
+        syncUI();
+      });
+    }
+    function setView(m) { if (driving) { driving.view = m; cams.setMode(m); syncUI(); } }
+    $('dExit').addEventListener('click', exitDrive);
+    $('resExit').addEventListener('click', exitDrive);
+    $('dView').addEventListener('click', () => setView(st.mode === 'chase' ? 'cabin' : 'chase'));
+    $('dCentre').addEventListener('click', () => { tilt.zero = null; });
+
+    // keyboard: the arrows or WASD; C (or 1 and 2) switches between the chase camera and the driver's seat
+    const KEYS = { ArrowUp: 'gas', w: 'gas', W: 'gas', ArrowDown: 'brake', s: 'brake', S: 'brake', ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+    function driveKeys(e, down) {
+      const k = KEYS[e.key];
+      if (k) { held[k] = down; return true; }
+      if (!down) return false;
+      if (e.key === 'c' || e.key === 'C') { setView(st.mode === 'chase' ? 'cabin' : 'chase'); return true; }
+      if (e.key === '1' || e.key === '2') { setView(e.key === '1' ? 'chase' : 'cabin'); return true; }
+      return false;
+    }
+    window.addEventListener('keyup', (e) => { if (driving) driveKeys(e, false); });
+    const letGo = () => { for (const k in held) held[k] = false; for (const k in pad) pad[k] = false; document.querySelectorAll('.pad.on').forEach((b) => b.classList.remove('on')); };
+    window.addEventListener('blur', letGo);
+    document.addEventListener('visibilitychange', letGo);
+
+    // the pedals and steering buttons on a touch screen: held while a finger is on them
+    [['padGas', 'gas'], ['padBrake', 'brake'], ['padLeft', 'left'], ['padRight', 'right']].forEach(([id, k]) => {
+      const b = $(id);
+      const on = (e) => { e.preventDefault(); pad[k] = true; b.classList.add('on'); try { b.setPointerCapture(e.pointerId); } catch (err) { /* already gone */ } };
+      const off = () => { pad[k] = false; b.classList.remove('on'); };
+      b.addEventListener('pointerdown', on);
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((ev) => b.addEventListener(ev, off));
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
+    });
+
+    // Tilt to steer: the angle the device is turned in the plane of its screen, like a steering wheel, against
+    // the way it was held during the countdown (or when Centre was tapped). Worked out from gravity in screen
+    // terms, so it doesn't matter how far back it's tipped or which way round it is.
+    const tilt = { on: false, steer: 0, zero: null, flip: false, seen: false };
+    function onMotion(e) {
+      const g = e.accelerationIncludingGravity;
+      if (!g || g.x == null) return;
+      tilt.seen = true;
+      const o = typeof window.orientation === 'number' ? window.orientation : (screen.orientation ? screen.orientation.angle : 0);
+      const r = o === 90 ? -g.y : o === -90 || o === 270 ? g.y : o === 180 ? -g.x : g.x; // gravity towards the screen's right
+      const d = o === 90 ? -g.x : o === -90 || o === 270 ? g.x : o === 180 ? g.y : -g.y; // and its bottom
+      const a = Math.atan2(r, d);
+      if (tilt.zero == null || countdown > 0) tilt.zero = a;
+      const rel = Math.atan2(Math.sin(a - tilt.zero), Math.cos(a - tilt.zero)) * (180 / Math.PI) * (tilt.flip ? -1 : 1);
+      const DEAD = 2.5, FULL = 26; // degrees: a little play in the middle, full lock at 26
+      tilt.steer = Math.abs(rel) < DEAD ? 0 : clamp((rel - Math.sign(rel) * DEAD) / (FULL - DEAD), -1, 1);
+    }
+    function startTilt(flip) {
+      Object.assign(tilt, { on: true, steer: 0, zero: null, flip, seen: false });
+      window.addEventListener('devicemotion', onMotion);
+      setTimeout(() => { // no tilt readings at all: fall back to the buttons
+        if (driving && tilt.on && !tilt.seen) { stopTilt(); driving.steerBy = 'buttons'; syncUI(); showBanner('Use the buttons to steer', 'Tilt steering is not available', 3); }
+      }, 2500);
+    }
+    function stopTilt() { tilt.on = false; tilt.steer = 0; window.removeEventListener('devicemotion', onMotion); }
+    window.addEventListener('orientationchange', () => { tilt.zero = null; }); // turned round: straight ahead is wherever it's held now
+    NR.debug.drive = { tilt, held, pad, get driving() { return driving; }, get countdown() { return countdown; } }; // for tests
+
+    // every frame: the countdown, then your inputs (steering keys and buttons ease in, tilt is already smooth)
+    function driveFrame(dt) {
+      const I = race.input;
+      if (countdown > 0 && !paused) {
+        countdown -= dt;
+        if (countdown <= 0) { goT = 1.1; audio.unlock(); }
+      }
+      if (goT > 0) goT -= dt;
+      const live = countdown <= 0 && !paused;
+      const want = live ? ((held.right || pad.right) ? 1 : 0) - ((held.left || pad.left) ? 1 : 0) : 0;
+      const rate = want === 0 || want * steerKeys < 0 ? 6 : 2.6;
+      steerKeys += clamp(want - steerKeys, -rate * dt, rate * dt);
+      I.steer = clamp(steerKeys + (live && tilt.on ? tilt.steer : 0), -1, 1);
+      I.throttle = live && (held.gas || pad.gas) ? 1 : 0;
+      I.brake = live && (held.brake || pad.brake) ? 1 : 0;
+      renderDrive();
+    }
+    const fmtTenth = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+    function renderDrive() {
+      const p = race.player;
+      if (!p) return;
+      const cd = $('countdown');
+      cd.hidden = !(countdown > 0 || goT > 0);
+      if (!cd.hidden) {
+        setText($('cdNum'), countdown > 2.4 ? '3' : countdown > 1.2 ? '2' : countdown > 0 ? '1' : 'GO!');
+        cd.classList.toggle('go', countdown <= 0);
+        setText($('cdTip'), countdown <= 0 ? 'Go, go, go!' : tilt.on ? 'Hold it straight · tilt to steer' : coarse ? 'Hold Gas to go' : 'Press ↑ to go');
+      }
+      const T = race.TOTAL_LAPS, html = (el, v) => { if (el.innerHTML !== v) el.innerHTML = v; };
+      html($('dPos'), `P${p.pos}<span>/${cars.length}</span>`);
+      html($('dLap'), p.finished ? 'Done' : `${Math.min(T, p.lap)}<span>/${T}</span>`);
+      setText($('dTime'), fmtTenth(p.lapIdx >= 0 && !p.finished ? race.time - p.lapStart : 0));
+      setText($('dSpeed'), String(Math.round(p.v * 3.6)));
+      setText($('dGear'), String(p.gear));
+      $('dRpm').style.transform = `scaleX(${p.rpm.toFixed(3)})`;
+    }
+    function syncDriveUI() {
+      const on = !!driving;
+      $('driveTop').hidden = !on; $('driveSpeed').hidden = !on; $('driveHelp').hidden = !on || coarse;
+      $('pads').hidden = !on || !coarse;
+      $('pads').classList.toggle('tilt', on && driving.steerBy === 'tilt');
+      $('dCentre').hidden = !(on && driving.steerBy === 'tilt');
+      $('resExit').hidden = !on;
+      setText($('restartBtn'), on ? 'Race again' : 'Restart race');
+      if (on) setText($('dView'), st.mode === 'cabin' ? 'Chase' : 'Cockpit');
+      if (!on) $('countdown').hidden = true;
     }
 
     // ---------- minimap ----------
@@ -542,7 +745,7 @@
       $('tRpm').style.transform = `scaleX(${(c.out ? 0 : c.rpm).toFixed(3)})`;
       $('tRpm').classList.toggle('hot', c.rpm > 0.93);
       $('tPos').textContent = `P${c.pos}`;
-      $('tLap').textContent = c.out ? 'Retired' : c.finished ? 'Finished' : `Lap ${c.lap}/${TOTAL}`;
+      $('tLap').textContent = c.out ? 'Retired' : c.finished ? 'Finished' : `Lap ${c.lap}/${race.TOTAL_LAPS}`;
       $('tSection').textContent = c.state === 'crash' ? `Incident · ${track.sections[c.section].name}` : c.pit && c.pit.phase === 'stop' ? 'Pit stop' : c.pit && c.pit.phase !== 'in' ? 'Pit lane' : track.sections[c.section].name;
       $('tCur').textContent = c.finished || c.out ? '–:––.–––' : fmtLap(race.time - c.lapStart);
       $('tLast').textContent = fmtLap(c.lastLap);
@@ -578,7 +781,7 @@
     function layoutHud() {
       if (document.body.classList.contains('hud-hidden')) return;
       const W = window.innerWidth, H = window.innerHeight;
-      const low = boxes(['.focus', '.dock', '.tele', '#replayBar']);
+      const low = boxes(['.focus', '.dock', '.tele', '#replayBar', '#driveSpeed', '#padLeft', '#padRight', '#padBrake', '#padGas']); // (the last: drive mode)
       const topOf = (rs) => Math.min(H, ...rs.map((r) => r.top));
       setPx('--hud-b', H - topOf(low));
       const SIDE = ['.left', '#results', '#resShow'];
@@ -609,7 +812,7 @@
     }
     let layoutDue = false;
     const relayout = () => { if (!layoutDue) { layoutDue = true; requestAnimationFrame(() => { layoutDue = false; layoutHud(); }); } };
-    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar'].forEach((s) => ro.observe(document.querySelector(s))); }
+    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar', '#driveSpeed', '#pads'].forEach((s) => ro.observe(document.querySelector(s))); }
     window.addEventListener('resize', relayout);
     syncUI();
     layoutHud();
@@ -620,6 +823,7 @@
       const real = Math.min(0.05, raw);
       last = now;
       let focus, fxDt = 0, rate = speed;
+      if (driving) driveFrame(raw);
       if (replay.active) {
         rate = replay.update(paused ? 0 : real, st.calm ? 0 : 1);
         fxDt = paused ? 0 : real * rate;
@@ -627,7 +831,7 @@
         focus = replay.focus;
         $('replayProg').style.transform = `scaleX(${replay.progress.toFixed(3)})`;
       } else {
-        if (!paused) {
+        if (!paused && !(driving && countdown > 0)) {
           // equal sub-steps of about 1/60 s: a tiny leftover step skews the car physics (false take-offs on crests)
           const sim = real * speed, n = sim > 0 ? Math.max(1, Math.ceil(sim * 60 - 0.1)) : 0, h = sim / n;
           for (let k = 0; k < n; k++) { race.step(h); replay.record(); }

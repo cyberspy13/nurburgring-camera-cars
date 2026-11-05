@@ -1,6 +1,6 @@
 # Camera Cars on a Nürburgring Track
 
-A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bus, round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, a banner plane, the driver's seat or the trackside grandstands.
+A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bus, round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, a banner plane, the driver's seat or the trackside grandstands, or pick a car and race it yourself.
 
 **Play it:** https://cyberspy13.github.io/nurburgring-camera-cars/
 
@@ -17,6 +17,7 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 - **Replays**: broadcast-style crash replays with slow motion.
 - **Weather and time of day**: clear, rain, snow or hail, by day or night. Each changes grip, so wet or snowy races have more incidents.
 - **Winner celebration**: chequered flag, fireworks, doughnuts in front of a cheering grandstand, and a full results table.
+- **Drive mode**: choose any of the 13 cars, including the bus (a little slower), and race it from the back of a standing grid over a quick 5 laps or the full 17. Rivals can be easy, normal or hard. Take a corner too fast and you run wide; a crash spins you round and the car gets going again. There are no pit stops or safety car in drive mode. Exit goes back to watching.
 - **Sound**: each engine is modelled cylinder by cylinder in the browser, with no sound files. There are also tyre, crash, crowd and weather sounds.
 
 ## Controls
@@ -31,10 +32,21 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 | `P` or `Space` | Pause |
 | `M` | Sound on or off (sound starts after your first tap, click or key press) |
 | `H` | Hide the overlay |
+| `D` | Drive a car |
+
+While driving:
+
+| Key | Action |
+| --- | --- |
+| `↑` or `W` | Gas |
+| `↓` or `S` | Brake |
+| `←` `→` or `A` `D` | Steer |
+| `C` | Chase camera or driver's seat |
+| `P` | Pause |
 
 You can also use the on-screen buttons. Weather, day/night, pause, race speed (up to 16×) and replays sit under the circuit map. Scroll to zoom the air cameras; drag to orbit the blimp. The plane camera flies alongside the banner planes.
 
-**On an iPhone or iPad** everything is a tap: pinch the 3D view to zoom the air cameras and drag one finger to orbit the blimp. On a phone the controls sit above the map, the weather buttons open from the cloud button, and the standings open from **Standings**. Turn the phone on its side for the widest view. In Safari, Share › Add to Home Screen runs it full screen. With the iPhone's silent switch on, iOS mutes the engine sound.
+**On an iPhone or iPad** everything is a tap. To drive, tap **Drive** and tilt the device like a steering wheel (or choose the steering buttons), with Gas and Brake pedals on the screen; **Centre** sets the way you're holding it as straight ahead. Otherwise pinch the 3D view to zoom the air cameras and drag one finger to orbit the blimp. On a phone the controls sit above the map, the weather buttons open from the cloud button, and the standings open from **Standings**. Turn the phone on its side for the widest view. In Safari, Share › Add to Home Screen runs it full screen. With the iPhone's silent switch on, iOS mutes the engine sound.
 
 ## Running it locally
 
@@ -51,7 +63,7 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/school.js` | Parkroyal Community School, its pitch and its pupils |
 | `js/pools.js` | The swimming pools and their swimmers |
 | `js/models.js` | Car, bus and cockpit models: bodies, liveries, lights, wings and wheels |
-| `js/cars.js` | The field of cars, race simulation, pit stops, crashes, safety car and celebration |
+| `js/cars.js` | The field of cars, race simulation, pit stops, crashes, safety car, celebration and the handling of the car you drive |
 | `js/pits.js` | The pit crews and their kit: garage boards, box markings, fuel rigs, and each stop acted out |
 | `js/fx.js` | Smoke, spray, sparks, debris, fireworks and confetti |
 | `js/replay.js` | Recording and crash replays |
@@ -59,6 +71,6 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/weather.js` | Weather, night lighting and headlights |
 | `js/planes.js` | The two banner planes and their flight |
 | `js/audio.js`, `js/engine-worklet.js` | Engine and effect sounds |
-| `js/main.js` | Start-up, interface and the main loop |
+| `js/main.js` | Start-up, interface, drive mode (car choice, pedals, tilt steering) and the main loop |
 
 Built with [three.js](https://threejs.org/) r128. The circuit is a shortened, stylised take on the Nordschleife, and the car liveries are colour schemes only. Six follow real race cars, but none carries manufacturer or sponsor logos. The Qatar Airways bridge over the start/finish line is decoration, not a real sponsorship.

@@ -25,7 +25,7 @@
   ];
 
   // ---------------- race simulation ----------------
-  const TOTAL_LAPS = 17;
+  const FULL_LAPS = 17; // a quick race in drive mode can be shorter (setDrive)
   const RAIL = 5.2;     // the Armco stands this far beyond the road edge (world.buildRoad)
   const GRIP = 17.5;    // lateral grip the speed profile is planned with (track.js)
   const MAX_OUT = 5;    // after this many retirements incidents stay minor
@@ -58,14 +58,18 @@
     const sideV = new THREE.Vector3(), upV = new THREE.Vector3(), fwdV = new THREE.Vector3(), tmp = new THREE.Vector3();
     const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
     const tf = track.newFrame();
-    let time = 0, phase = 'race', winner = null, finishCount = 0, outCount = 0, endT = 0;
+    let time = 0, phase = 'race', winner = null, finishCount = 0, outCount = 0, endT = 0, TOTAL_LAPS = FULL_LAPS;
     const yellows = [];
     const ceremony = { center: new THREE.Vector3(), fwd: new THREE.Vector3(), side: new THREE.Vector3(), up: new THREE.Vector3(), t: 0 };
     const api = {
-      cars, TOTAL_LAPS, ceremony, onEvent: null, quiet: false,
-      step, render, reset, beginCeremony, forceIncident,
+      cars, ceremony, onEvent: null, quiet: false,
+      step, render, reset, beginCeremony, forceIncident, setDrive,
+      // drive mode: null while watching; { idx, laps, ai } with one car driven by the player through
+      // input (throttle and brake 0..1, steer -1 left .. 1 right)
+      drive: null, input: { throttle: 0, brake: 0, steer: 0 },
       get time() { return time; }, get phase() { return phase; }, get winner() { return winner; },
-      get scPhase() { return scPhase; },
+      get scPhase() { return scPhase; }, get TOTAL_LAPS() { return TOTAL_LAPS; },
+      get player() { return api.drive ? cars[api.drive.idx] : null; },
     };
     const emit = (ev) => { if (!api.quiet && api.onEvent) api.onEvent(ev); };
     const puff = (type, p) => { if (fx) fx.emit(type, p, time); };
@@ -87,7 +91,17 @@
         gapAhead: 0, gapBehind: 0, graceT: 22, // the rolling start: let the pack string out before contact can spin anyone
         // the compulsory pit stop: called in at the end of lap 5 to 11; `pit` holds the stop while it's under way
         pitLap: 5 + Math.floor(rand() * 7), pit: null, pitted: false, tyreLap: 0, jack: 0,
+        player: false, head: 0, ctl: false, turnAcc: 0,
       });
+      // drive mode: a standing start and no pit stops; the player's car at its true pace, the rest at the
+      // chosen difficulty
+      const d = api.drive;
+      if (d) {
+        c.player = c.idx === d.idx;
+        c.v = 0; c.gear = 1; c.pitLap = Infinity; c.graceT = 14;
+        if (c.player) { c.topF = c.gripF = c.brakeF = pace; c.risk = 0; }
+        else { c.topF *= d.ai; c.gripF *= d.ai; c.brakeF *= d.ai; }
+      }
       c.vel.set(0, 0, 0);
     }
     function reset() {
@@ -97,8 +111,20 @@
       // a fresh grid every race: shuffle who starts where
       const slots = cars.map((c, i) => i);
       for (let i = slots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [slots[i], slots[j]] = [slots[j], slots[i]]; }
+      if (api.drive) { // the player starts from the back of the grid
+        const p = api.drive.idx, q = slots.indexOf(cars.length - 1);
+        [slots[p], slots[q]] = [slots[q], slots[p]];
+      }
       cars.forEach((c, i) => resetCar(c, slots[i]));
       if (fx) fx.reset();
+    }
+
+    // Drive mode on ({ idx, laps, ai }) or off (null), then a fresh race.
+    function setDrive(d) {
+      api.drive = d || null;
+      TOTAL_LAPS = d ? d.laps : FULL_LAPS;
+      api.input.throttle = api.input.brake = api.input.steer = 0;
+      reset();
     }
 
     function step(dt) {
@@ -115,7 +141,9 @@
       scStep(dt);
       contacts();
       ranking();
-      if (phase === 'finishing' && (cars.every((c) => c.finished || c.out) || time - endT > 75)) endRace();
+      // the race ends when everyone is home, or 75 s after the winner (in drive mode, not before the player)
+      const waitFor = api.player && !api.player.finished ? 300 : 75;
+      if (phase === 'finishing' && (cars.every((c) => c.finished || c.out) || time - endT > waitFor)) endRace();
       if (firstPass.size > 600) {
         let lead = 0;
         for (const c of cars) lead = Math.max(lead, c.cp || 0);
@@ -214,28 +242,33 @@
       let lim = Math.max(W - 1.1, c.latLim), slope = null;
       if (c.pit) ({ vt, latT, lim, slope } = pitDrive(c, dLine, dt, vt, latT, lim));
 
-      // lateral movement (a car rejoining from the grass may be outside the usual limit for a while)
-      c.latLim = Math.max(0, c.latLim - dt * 1.5);
-      const dl = clamp((latT - c.lat) * 0.9, -1, 1);
-      c.latV += (dl * 3.2 - c.latV) * Math.min(1, dt * 3);
-      c.lat = clamp(c.lat + c.latV * dt, -lim, lim);
-      // in the pit lane the car is placed exactly on its line, turned to follow it
-      if (slope != null) { c.lat = latT; c.latV = slope * Math.max(8, c.v); }
+      // the player drives their own car, except while it rejoins after a crash and on the cool-down lap
+      if (c.player && !c.rejoin && !c.finished) playerMove(c, dt, s, tyre, wg, dLine);
+      else {
+        c.ctl = false;
+        // lateral movement (a car rejoining from the grass may be outside the usual limit for a while)
+        c.latLim = Math.max(0, c.latLim - dt * 1.5);
+        const dl = clamp((latT - c.lat) * 0.9, -1, 1);
+        c.latV += (dl * 3.2 - c.latV) * Math.min(1, dt * 3);
+        c.lat = clamp(c.lat + c.latV * dt, -lim, lim);
+        // in the pit lane the car is placed exactly on its line, turned to follow it
+        if (slope != null) { c.lat = latT; c.latV = slope * Math.max(8, c.v); }
 
-      // longitudinal
-      const vPrev = c.v;
-      let thr;
-      if (c.v < vt) {
-        c.v += 10.5 * (0.7 + 0.3 * wg) * (1 + 0.12 * c.draft) * Math.max(0.1, 1 - Math.pow(c.v / (80 * top), 2)) * dt * (c.air ? 0.3 : 1);
-        thr = c.v < vt - 0.6 ? 1 : 0.35 + 0.6 * Math.pow(c.v / 80, 3);
-      } else {
-        c.v = Math.max(vt, c.v - 17 * (0.6 + 0.4 * wg) * dt);
-        thr = c.v < vPrev - 0.05 ? 0 : 0.3 + 0.6 * Math.pow(c.v / 80, 3);
+        // longitudinal
+        const vPrev = c.v;
+        let thr;
+        if (c.v < vt) {
+          c.v += 10.5 * (0.7 + 0.3 * wg) * (1 + 0.12 * c.draft) * Math.max(0.1, 1 - Math.pow(c.v / (80 * top), 2)) * dt * (c.air ? 0.3 : 1);
+          thr = c.v < vt - 0.6 ? 1 : 0.35 + 0.6 * Math.pow(c.v / 80, 3);
+        } else {
+          c.v = Math.max(vt, c.v - 17 * (0.6 + 0.4 * wg) * dt);
+          thr = c.v < vPrev - 0.05 ? 0 : 0.3 + 0.6 * Math.pow(c.v / 80, 3);
+        }
+        c.throttle += (thr - c.throttle) * Math.min(1, dt * 14);
+        c.brake = c.v < vPrev - 0.05;
+        c.accel += ((c.v - vPrev) / dt - c.accel) * Math.min(1, dt * 6);
+        c.dist += c.v * dt;
       }
-      c.throttle += (thr - c.throttle) * Math.min(1, dt * 14);
-      c.brake = c.v < vPrev - 0.05;
-      c.accel += ((c.v - vPrev) / dt - c.accel) * Math.min(1, dt * 6);
-      c.dist += c.v * dt;
 
       // checkpoints, laps and the chequered flag
       const cp = Math.floor(c.dist / 100);
@@ -272,9 +305,9 @@
 
       // orientation
       const k = track.lerpArr(track.kS, sNow);
-      c.latAcc = c.v * c.v * k;
-      c.steer += (Math.atan(2.7 * k) + c.latV * 0.01 - c.steer) * Math.min(1, dt * 8);
-      const yaw = Math.atan2(c.latV, Math.max(8, c.v)) + c.yawOff;
+      c.latAcc = c.ctl ? c.turnAcc : c.v * c.v * k;
+      c.steer += ((c.ctl ? -api.input.steer * 0.14 : Math.atan(2.7 * k) + c.latV * 0.01) - c.steer) * Math.min(1, dt * 8);
+      const yaw = c.ctl ? c.head : Math.atan2(c.latV, Math.max(8, c.v)) + c.yawOff;
       sideV.copy(c.fr.side);
       mtx.makeBasis(sideV, c.fr.up, c.fr.fwd);
       c.quat.setFromRotationMatrix(mtx);
@@ -304,7 +337,7 @@
 
       // mistakes: the closer to the grip limit, the likelier; the first lap, battles and worn tyres raise the odds.
       // The bus, with pupils on its open top deck, never makes one.
-      if (c.type !== 'bus' && phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && !c.pit && time > 14 && time > c.graceT) {
+      if (c.type !== 'bus' && !c.player && phase === 'race' && !scOn && !c.finished && !c.rejoin && !c.air && !c.pit && time > 14 && time > c.graceT) {
         const stress = clamp((use - 0.6) / 0.4, 0, 1);
         let rate = api.hazard * stress * stress * c.risk * (1 + 8 * (1 - tyre)) * (c.attack ? 3 : 1) * ((c.lapIdx || 0) < 1 ? 2 : 1);
         rate *= api.weather.risk;
@@ -312,6 +345,53 @@
         if (Math.random() < rate * dt) startCrash(c, Math.random() < 0.6 ? 'spin' : 'off');
       }
     }
+    // ---------- the player's car ----------
+    // Arcade handling in road coordinates. The throttle and brake set the speed with the same engine and brakes
+    // as the computer's cars (the bus pulls a little less). Steering turns the car against the road's own bend
+    // using up to all of the tyres' grip, so a corner taken too fast runs wide; with no steering the car
+    // straightens up a little by itself. The grass is slow, the Armco bounces the car back (a hard hit crashes
+    // it, and it rejoins the way the computer's cars do), and a car turned too far across the road spins.
+    // head: heading against the road, + towards +lat (the car's left).
+    function playerMove(c, dt, s, tyre, wg, dLine) {
+      const inp = api.input, kRoad = track.lerpArr(track.kS, s);
+      if (!c.ctl) { c.head = Math.asin(clamp(c.latV / Math.max(c.v, 1), -0.8, 0.8)); c.ctl = true; } // taking over
+      const off = Math.abs(c.lat) > W;
+      const grip = GRIP * 1.12 * c.gripF * tyre * wg * (off ? 0.55 : 1); // arcade grip: a little to spare for corrections
+      const turn = clamp((-inp.steer * grip) / Math.max(c.v, 6), -1.5, 1.5) * Math.min(1, c.v / 3);
+      c.turnAcc = turn * c.v;
+      c.head += (turn - kRoad * c.v) * dt;
+      if (Math.abs(inp.steer) < 0.05) c.head -= c.head * Math.min(1, dt * 0.9);
+      c.latV = c.v * Math.sin(c.head);
+      c.lat += c.latV * dt;
+      // the Armco, or the pit wall along the pit straight: a glancing touch bounces off, a hard one crashes
+      const pits = dLine > PIT.entry - 6 && dLine < PIT.exit + 6;
+      const wall = (c.lat > 0 && pits ? PIT.wall : W + RAIL) - c.wid / 2 - 0.2;
+      if (Math.abs(c.lat) > wall) {
+        const into = Math.abs(c.latV), sd = Math.sign(c.lat);
+        c.lat = sd * wall;
+        tmp.copy(c.world).addScaledVector(c.fr.side, sd * c.wid / 2);
+        if (into > 1.5) puff('crash', { pos: [tmp.x, tmp.y + 0.4, tmp.z], vel: [c.vel.x * 0.5, 0, c.vel.z * 0.5], strength: clamp(into / 30, 0.04, 0.3), colors: [c.base, '#141414'] });
+        if (into > 8) { startCrash(c, 'off'); if (c.state === 'crash') return; } // (the bus only wobbles)
+        c.head *= -0.3; c.v *= Math.max(0.6, 1 - into * 0.025);
+        c.latV = c.v * Math.sin(c.head);
+      }
+      const top = c.topF * (1 + 0.045 * c.draft), vPrev = c.v;
+      let a = inp.throttle * 10.5 * (0.7 + 0.3 * wg) * (1 + 0.12 * c.draft) * Math.max(0.1, 1 - Math.pow(c.v / (80 * top), 2)) * (c.air ? 0.3 : 1) * (c.type === 'bus' ? 0.85 : 1);
+      a -= inp.brake * 17 * (0.6 + 0.4 * wg) * c.brakeF * (c.air ? 0.2 : 1);
+      a -= 0.3 + 0.00025 * c.v * c.v * (1 - inp.throttle); // rolling and air resistance off the throttle
+      if (off) a -= 1.5 + 0.08 * c.v;                       // the grass
+      c.v = Math.max(0, c.v + a * dt);
+      c.throttle += (Math.max(inp.throttle, 0.12) - c.throttle) * Math.min(1, dt * 14);
+      c.brake = inp.brake > 0.1;
+      c.accel += ((c.v - vPrev) / dt - c.accel) * Math.min(1, dt * 6);
+      c.dist += c.v * Math.cos(c.head) * dt;
+      // turned too far across the road: a spin (the bus, with its pupils, just scrubs off speed)
+      if (Math.abs(c.head) > 0.9 && c.v > 12) {
+        if (c.type === 'bus') { c.head = Math.sign(c.head) * 0.9; c.v *= 1 - Math.min(1, dt * 1.5); }
+        else startCrash(c, 'spin', Math.sign(c.head));
+      }
+    }
+
     // ---------- the pit stop ----------
     // A GT3 endurance stop: in at 60 km/h, up on the air jacks, a driver change while the fuel goes in, then
     // four new tyres (no tyre work while fuel flows), down off the jacks, and released when the lane is clear.
@@ -560,7 +640,7 @@
       const cr = c.cr;
       const roofed = Math.cos(cr.roll) < 0.5;
       const wrecked = roofed || cr.rolled || cr.maxHit > 13 || (c.dmgBits & 2);
-      if (roofed || (wrecked && outCount < MAX_OUT)) retire(c);
+      if (!c.player && (roofed || (wrecked && outCount < MAX_OUT))) retire(c); // the player always gets going again
       else rejoin(c);
     }
     function retire(c) {
@@ -792,7 +872,7 @@
       return best;
     }
     function deploySC(c) {
-      if (scPhase !== 'none' || phase !== 'race' || time < 20) return;
+      if (scPhase !== 'none' || phase !== 'race' || time < 20 || api.drive) return; // no safety car in drive mode
       const lead = leaderOnTrack();
       if (!lead || lead.lap >= TOTAL_LAPS) return; // never on the final lap
       // it joins a few hundred metres up the road from the leader, on a clear stretch
