@@ -1,6 +1,6 @@
 # Camera Cars on a Nürburgring Track
 
-A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bus, round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, a banner plane, the driver's seat or the trackside grandstands, or pick a car and race it yourself.
+A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bus, round a compact Nürburgring Nordschleife, running in the browser. Watch it from a helicopter, a blimp, a banner plane, the driver's seat or the trackside grandstands, or pick a car and race it yourself. Next to the track, Parkroyal play Tytherington at football, and you can watch that too.
 
 **Play it:** https://cyberspy13.github.io/nurburgring-camera-cars/
 
@@ -8,7 +8,10 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 
 - **12 GT3 cars**: McLaren, BMW, Mercedes-AMG, Audi, Aston Martin, Porsche, Ferrari, Lamborghini, Corvette and Ford, each with its own engine sound and a body shaped after the real car: its silhouette, grille and lights, flared wheel arches, swan-neck rear wing, and centre-lock wheels with brake calipers. Six wear colour schemes copied from real race cars: the #9 and #73 Mercedes-AMG GT3s, the #24 Corvette Z06 GT3.R, the #007 Aston Martin Vantage, the #22 BMW M4 and a Gulf-coloured Ford GT. Every car carries its number on the bonnet, doors and roof.
 - **A guest bus**: #13, a red open-top double-decker in Parkroyal Community School colours, with the school's crest and name on its sides and back. Sixteen pupils in red jumpers ride on the top deck, waving at the crowds and cheering whenever it overtakes. It flies a PR 4ML flag from its back rail (the same registration is on its plates), and some fans in the crowd wave "Come on Parkroyal bus" flags. It has a turbo-diesel straight-six, races a little off the GT3s' pace, and can be followed from every camera, including the driver's seat. With pupils on board it never crashes: a knock from another car only rocks it.
-- **Parkroyal Community School**: a red-brick Victorian school beside the track after Breidscheid, with its row of gables and tall chimneys, a newer extension with the school's name in red, and a green all-weather pitch behind spear-top railings. Its pupils line the railings and go wild when the bus goes by. It's also one of the spectator stands.
+- **Parkroyal Community School**: a red-brick Victorian school beside the track after Breidscheid, with its row of gables and tall chimneys, a newer extension with the school's name in red, and a green all-weather pitch behind spear-top railings. Its pupils line the railings and go wild when the bus goes by, and more of them sit by the pitch to watch the football. It's also one of the spectator stands.
+- **Football at the school**: on the pitch beside the track, Parkroyal Community School play Tytherington, both from Macclesfield, six a side. Parkroyal wear red and Tytherington blue, each with a keeper in green or yellow, and a referee in black runs with the play. The kids dribble, pass, shoot and save. There are throw-ins, corners and goal kicks, and goals with nets. After a goal the scorer runs to the corner flag with their team-mates chasing, and the pupils watching cheer when Parkroyal score. A match is two halves of six minutes with half time in between. At full time the winners celebrate in the centre circle, and then a new match kicks off. Parkroyal are at home, so they win a little more often, but not always. Floodlights come on at night.
+- **The giant scoreboard**: past the end of the pitch, facing the track, a huge board shows PARKROYAL v TYTHERINGTON with the score, who's WINNING and who's LOSING (WON and LOST at full time), and the clock, and flashes GOAL! in the scorers' colours. Under it a giant screen shows the match live from the TV camera.
+- **Football camera**: the Football button (or `4`) shows the match from the TV camera on its tower by the school, panning with the ball, with close-ups of the scorer after a goal and of the winners at full time. A score bar at the top shows the score, who's winning, and the half and the clock. Goals, half time and full time are announced in any view, and you hear the referee's whistle, the ball being kicked and the cheer for a goal.
 - **Banner planes**: a red plane towing COME ON PARKROYAL BUS and a white and blue one towing HELLO MACCLESFIELD circle low over whatever you're watching, so the banners keep crossing the view. At night their navigation lights come on and the banners stay lit.
 - **Swimming pools**: four pools beside the track, with people swimming laps, floating on rubber rings, sitting on the edge and standing in the water to wave at the cars.
 - **Cows and sheep**: five fenced fields beside the track. The cows (black-and-white and brown) and the sheep (with a black sheep in every flock) graze, wander, lie down (more of them at night) and lift their heads to watch the cars go by, with calves and lambs at their mothers' sides. Now and then you hear a moo or a baa. There's a farm at Metzgesfeld with a farmhouse, a red barn, hay bales and a tractor.
@@ -26,7 +29,7 @@ A live 3D race of twelve GT3 cars, plus Parkroyal Community School's open-top bu
 
 | Key | Action |
 | --- | --- |
-| `1` `2` `3` | Air, cabin or spectator camera |
+| `1` `2` `3` `4` | Air, cabin, spectator or football camera |
 | `←` `→` | Switch car (or stand, in spectator view) |
 | `B` | Helicopter, blimp or banner plane |
 | `W` / `N` | Cycle the weather / day or night |
@@ -63,6 +66,7 @@ There's no build step. Open `index.html` in Chrome, Edge or Firefox. You need an
 | `js/track.js` | The circuit layout, speed profile, racing line and pit lane layout |
 | `js/scenery.js` | Grandstand, pit building, sponsor bridge, spectators, forests, village and castle |
 | `js/school.js` | Parkroyal Community School, its pitch and its pupils |
+| `js/football.js` | The football match on the school pitch: the players and referee, the ball, goals, floodlights, the giant scoreboard and live screen, and the TV camera |
 | `js/pools.js` | The swimming pools and their swimmers |
 | `js/farm.js` | The fields, the cows and sheep, and the farm |
 | `js/models.js` | Car, bus and cockpit models: bodies, liveries, lights, wings and wheels |

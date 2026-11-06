@@ -232,7 +232,7 @@
         const box = new THREE.Box3();
         A.people.forEach((p) => box.expandByPoint(p.up));
         box.getCenter(A.center);
-        A.radius = box.getSize(new THREE.Vector3()).length() / 2 + 3;
+        A.radius = box.getSize(new THREE.Vector3()).length() / 2 + 3 + (A.pad || 0); // pad: room for people who move about
         PARTS.forEach(([key, m, per, cast]) => { A.m[key] = instMesh(GEO[key], MAT[m], n * per, A.center, A.radius, cast && !A.noShadow, A.parent); });
         HEADWEAR.forEach((key) => {
           const list = A.people.filter((p) => p.hw === key);
@@ -343,12 +343,24 @@
       P.lean = lerp(b.lean, BASE.stand.lean, ue) + mid * 0.4 + 0.015 * Math.sin(t * 0.6 + p.ph) - (p.act === 'cheer' ? 0.08 : 0);
       P.legOff = p.swim ? 0.16 * Math.sin(t * 9 + p.ph) : p.legOff * ue; P.splay = 0.05 * ue;
       P.x = lerp(p.seat.x, p.up.x, ue); P.y = lerp(p.seat.y, p.up.y, ue) + jump; P.z = lerp(p.seat.z, p.up.z, ue);
+      if (p.run) P.lean = p.run.lean;
 
       _e.set(b.pitch, p.yaw, 0, 'YXZ'); _q.setFromEuler(_e);
       _r.compose(_v.set(P.x, P.y, P.z), _q, _s.set(p.s, p.s, p.s));
       const i2 = p.i * 2;
-      // legs only move while getting up, sitting down or jumping (or swimming, which also moves the body)
-      if (p.swim || !(jump === 0 && (u === 0 || u === 1) && p.legsU === u)) {
+      if (p.run) {
+        // a footballer (football.js): a running stride, the knee bending as the leg swings through, or a kick
+        const r = p.run, sw = Math.sin(r.ph), cw = Math.cos(r.ph);
+        for (let k = 0; k < 2; k++) {
+          const sd = k ? 1 : -1, kicking = k === r.foot && r.kick !== 0;
+          const hip = kicking ? r.kick : sd * sw * r.amp * 0.8, knee = kicking ? r.knee : 0.06 + r.amp * 1.25 * Math.max(0, sd * cw);
+          _th.multiplyMatrices(_r, loc(sd * 0.09, 0, 0, -hip, 0, sd * 0.03, 'ZXY'));
+          A.m.thigh.setMatrixAt(i2 + k, _th);
+          _o.multiplyMatrices(_th, loc(0, -0.44, 0, knee, 0, 0, 'XYZ'));
+          A.m.shin.setMatrixAt(i2 + k, _o);
+        }
+      } else if (p.swim || !(jump === 0 && (u === 0 || u === 1) && p.legsU === u)) {
+        // legs only move while getting up, sitting down or jumping (or swimming, which also moves the body)
         for (let k = 0; k < 2; k++) {
           const sd = k ? 1 : -1;
           _th.multiplyMatrices(_r, loc(sd * 0.09, 0, 0, -(P.hip + sd * P.legOff), 0, sd * P.splay, 'ZXY'));
@@ -413,7 +425,7 @@
       let propsTouched = false;
 
       for (const A of areas) {
-        if (!A.people.length || !A.m.torso) continue;
+        if (!A.people.length || !A.m.torso || A.match) continue; // the footballers are posed by the match (football.js)
         // an area on a moving object (the bus deck) is measured from where that object is now
         const C = A.parent ? A.parent.localToWorld(_wc.copy(A.center)) : A.center;
         if (A.parent && !A.parent.visible) continue;
@@ -431,10 +443,10 @@
           nearCars.push(c.world);
           if (A.busFans && c.type === 'bus' && c.world.distanceTo(C) < A.radius + 90) busHere = true;
         }
-        const party = cel > 0.5 || busHere || (A.parent && t < A.cheerUntil);
+        const party = cel > 0.5 || busHere || t < A.cheerUntil;
         nearReacts.length = 0;
         if (!A.parent) for (const r of reactions) if (r.pos.distanceTo(C) < A.radius + r.r) nearReacts.push(r);
-        const busy = nearCars.length > 0 || celHere || busHere || nearReacts.length > 0 || A.parent || (!cars && A.spot && A.spot.excite > 0.05);
+        const busy = nearCars.length > 0 || celHere || party || nearReacts.length > 0 || A.parent || (!cars && A.spot && A.spot.excite > 0.05);
         const slot = frame % 6;
         let posed = false;
 
@@ -530,6 +542,7 @@
 
     return {
       newArea, addPerson, finish, update, areas, seatGeometry: GEO.seat,
+      pose: writePose, dirty: markDirty, // for areas that move their own people (the footballers)
       setCelebration(on) { celOn = !!on; },
       cheer(A, len) { A.cheerUntil = lastT + len; }, // everyone in the area on their feet for a while
       react(pos, amount) {
@@ -967,6 +980,7 @@
     const clearings = []; // ground the forests leave alone: { x, z, r }
     const ctx = { track, scene, crowd, W, std, add, textTex, alignAt, flags, poleMat, clearOfCams, site, spots, clearings, castle: CASTLE, clear: (x, z, r) => clearings.push({ x, z, r }) };
     const school = NR.buildSchool(ctx, spots.find((sp) => sp.school));
+    const match = NR.buildFootball(ctx, school); // the football on its pitch
     const pools = NR.buildPools(ctx);
     const farm = NR.buildFarm(ctx);
 
@@ -1049,8 +1063,9 @@
     }
 
     return {
-      spots, update, castle: CASTLE, sfPos, standInfo, school, pools, farm, addRiders,
+      spots, update, castle: CASTLE, sfPos, standInfo, school, match, pools, farm, addRiders,
       busCheer: (len) => { if (riders) crowd.cheer(riders, len || 3); },
+      schoolCheer: (len) => crowd.cheer(school.area, len || 4), // the pupils watching the match, on their feet
       setCelebration: crowd.setCelebration,
       react: crowd.react,
       get crowdSize() { return crowd.count; },

@@ -110,7 +110,7 @@
   function createAudio(race) {
     let ctx = null, bus, master, revIn, BUF, CURVE, PULSE;
     let engine = 'loading', via = null; // which synth runs the engines ('worklet' or 'native'), and how the worklet loaded
-    let enabled = true, celebrating = false, crowd = null, bed = null, sky = 'clear', wx = null;
+    let enabled = true, celebrating = false, crowd = null, bed = null, sky = 'clear', wx = null, roar = null;
     let held = false, heard = false, holdT = 0; // paused by the race; the context has run at least once
     const waves = new Map(), voices = new Map(), aud = new Map(), made = new Map();
     const api = { onChange: null };
@@ -358,6 +358,40 @@
       // the folded tail is dropped, so the loop point is seamless
       const P = peakOf(out) / 0.8, b = ctx.createBuffer(2, len - X, sr);
       out.forEach((d, ch) => { const o = b.getChannelData(ch); for (let i = 0; i < len - X; i++) o[i] = d[i] / P; });
+      return b;
+    }
+    // The referee's pea whistle: a shrill note warbled by the pea rolling round inside. kind: 'short' (kick-off),
+    // 'goal' (one long blast), 'half' (two long) or 'full' (two short and a long).
+    function makeWhistle(kind) {
+      const sr = ctx.sampleRate;
+      const blasts = { short: [[0, 0.32]], goal: [[0, 0.95]], half: [[0, 0.7], [0.95, 0.7]], full: [[0, 0.3], [0.45, 0.3], [0.9, 1.2]] }[kind] || [[0, 0.32]];
+      const [l0, l1] = blasts[blasts.length - 1], len = Math.floor(sr * (l0 + l1 + 0.05));
+      const b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+      let ph = 0, roll = 0;
+      blasts.forEach(([t0, L]) => {
+        const i0 = Math.floor(t0 * sr), n = Math.floor(L * sr);
+        for (let i = 0; i < n; i++) {
+          const t = i / sr, env = Math.min(1, t / 0.015) * Math.min(1, (L - t) / 0.04);
+          roll += (2 * Math.PI * (30 + 6 * Math.sin(t * 9))) / sr;
+          ph += (2 * Math.PI * 2950 * (1 + 0.035 * Math.sin(roll))) / sr;
+          d[i0 + i] += (Math.sin(ph) + 0.25 * Math.sin(2 * ph) + 0.05 * noise()) * env * (0.65 + 0.35 * Math.sin(roll));
+        }
+      });
+      const P = peakOf([d]) / 0.8;
+      for (let i = 0; i < len; i++) d[i] /= P;
+      return b;
+    }
+    // a football being kicked: a dull thump with a slap on top
+    function makeKick() {
+      const sr = ctx.sampleRate, len = Math.floor(sr * 0.14), b = ctx.createBuffer(1, len, sr), d = b.getChannelData(0);
+      let ph = 0;
+      for (let i = 0; i < len; i++) {
+        const t = i / sr;
+        ph += (2 * Math.PI * (60 + 160 * Math.exp(-t * 40))) / sr;
+        d[i] = Math.sin(ph) * Math.exp(-t * 28) + noise() * Math.exp(-t * 300) * 0.5;
+      }
+      const P = peakOf([d]) / 0.9;
+      for (let i = 0; i < len; i++) d[i] /= P;
       return b;
     }
     function material(key, fn) { if (!made.has(key)) made.set(key, fn()); return made.get(key); }
@@ -643,8 +677,8 @@
     let havePrev = false;
     const score = (c) => { const a = aud.get(c); return a.g * (voices.has(c) ? 1.5 : 1) * (a.key ? 100 : 1); };
 
-    // o: { camera, mode, air, focus, paused, speed }; modes other than air, cabin and spectator
-    // (replay, ceremony) get the helicopter mix with the followed car always heard.
+    // o: { camera, mode, air, focus, paused, speed }; modes other than air, cabin, spectator and football
+    // (replay, ceremony) get the helicopter mix with the followed car always heard. Football sounds like a stand.
     function update(dt, o) {
       dt = Math.max(0, dt);
       o.camera.getWorldPosition(camPos);
@@ -658,7 +692,7 @@
       const t = ctx.currentTime;
       master.gain.setTargetAtTime(enabled && !o.paused ? 0.9 : 0, t, 0.08);
       right.set(1, 0, 0).applyQuaternion(o.camera.getWorldQuaternion(q));
-      const cabin = o.mode === 'cabin', blimp = o.mode === 'air' && o.air === 'blimp', spect = o.mode === 'spectator';
+      const cabin = o.mode === 'cabin', blimp = o.mode === 'air' && o.air === 'blimp', spect = o.mode === 'spectator' || o.mode === 'football';
       const ref = cabin ? 7 : spect ? 13 : blimp ? 380 : 24; // distance at full level
       const outside = cabin ? 0.5 : blimp ? 0.8 : 1;
       const wet = cabin ? 0.05 : spect ? 0.3 : blimp ? 0.4 : 0.2;
@@ -709,11 +743,16 @@
         wx.wind.gain.setTargetAtTime(sky === 'snow' ? 0.14 : sky === 'rain' ? 0.04 : 0, t, 0.8);
       }
 
-      // crowd: a murmur by the fences, a roar with swells for the winner
+      // crowd: a murmur by the fences, a roar with swells for the winner, and one for a goal at the school
       const now = t;
-      const cheer = celebrating ? 0.42 + 0.18 * Math.sin(now * 0.8 + Math.sin(now * 0.31) * 2) : spect ? 0.05 : 0;
+      let cheer = celebrating ? 0.42 + 0.18 * Math.sin(now * 0.8 + Math.sin(now * 0.31) * 2) : spect ? 0.05 : 0;
+      if (roar) {
+        const age = now - roar.t;
+        if (age > 8) roar = null;
+        else cheer = Math.max(cheer, 0.5 * Math.min(1, 90 / camPos.distanceTo(roar.pos)) * Math.min(1, age * 5) * Math.exp(-age / 2.4));
+      }
       if (cheer > 0 && !crowd) startCrowd();
-      if (crowd) { crowd.g.gain.setTargetAtTime(cheer, t, celebrating ? 0.5 : 0.8); crowd.s.gain.setTargetAtTime(cheer * 0.35, t, 0.5); }
+      if (crowd) { crowd.g.gain.setTargetAtTime(cheer, t, roar ? 0.25 : celebrating ? 0.5 : 0.8); crowd.s.gain.setTargetAtTime(cheer * 0.35, t, 0.5); }
     }
 
     function makeHail() {
@@ -790,6 +829,20 @@
       const moo = kind === 'cow', v = (Math.random() * 3) | 0;
       playAt(material((moo ? 'moo' : 'baa') + v, () => makeCall(moo, v / 2)), pos, moo ? 30 : 24, moo ? 0.6 : 0.5, (young ? 1.5 : 1) * (0.94 + Math.random() * 0.12), 0);
     }
+    // the football at the school (football.js): the referee's whistle, a kick, and the pupils roaring a goal
+    function whistle(pos, kind) {
+      if (!live() || !pos) return;
+      playAt(material('whistle-' + kind, () => makeWhistle(kind)), pos, 45, 0.55, 1, 0);
+    }
+    function kick(pos, power) {
+      if (!live() || !pos) return;
+      playAt(material('kick', makeKick), pos, 14, 0.25 + 0.55 * clamp(power, 0, 1), 0.9 + Math.random() * 0.2, 0);
+    }
+    function goal(pos) {
+      if (!live() || !pos) return;
+      roar = { t: ctx.currentTime, pos: pos.clone() };
+      if (!crowd) startCrowd();
+    }
     // Crowd roar for the winner. The flag is kept while sound is off, so a later unmute picks it up.
     function celebrate(on) {
       celebrating = !!on;
@@ -815,7 +868,7 @@
     function status() { return !enabled ? 'off' : live() || (heard && !wanted()) ? 'on' : 'waiting'; }
 
     Object.assign(api, {
-      update, unlock, setEnabled, status, impact, firework, animal, celebrate,
+      update, unlock, setEnabled, status, impact, firework, animal, celebrate, whistle, kick, goal,
       weather: (kind) => { sky = kind; },
       debug: () => ({ ctx, master, voices, engine, via }),
     });

@@ -1,6 +1,7 @@
 // school.js — Parkroyal Community School beside the track after Breidscheid: the Victorian red-brick block
 // with its row of gables and chimneys, the lower wing, the newer extension with the school's name in red,
-// and the all-weather pitch behind green railings, full of pupils in red jumpers cheering on the bus.
+// and the all-weather pitch behind green railings, full of pupils in red jumpers cheering on the bus (and a match
+// against Tytherington on the pitch: football.js).
 (function () {
   'use strict';
   const NR = (window.NR = window.NR || {});
@@ -287,7 +288,7 @@
     sign.rotation.y = facing(); sign.castShadow = true;
     scene.add(sign);
 
-    // ---------- the pupils: a row along the railings, the rest playing, two teachers ----------
+    // ---------- the pupils: a row along the railings, the rest watching the match from the school side, two teachers ----------
     const A = crowd.newArea('Parkroyal School', { spot: sp, busFans: true, range: 520 });
     const faceRoad = () => facing() + (rand() - 0.5) * 0.6;
     for (let u = -HALF + 2; u <= HALF - 2; u += 1.05) {
@@ -300,19 +301,21 @@
       if (rand() < 0.3) o.prop = 'cheer';
       crowd.addPerson(A, new THREE.Vector3(fr.pos.x, y, fr.pos.z), faceRoad(), 'stand', o);
     }
-    for (let n = 0; n < 12; n++) { // in little groups further back, standing or sitting on the pitch
-      track.frame(S + (rand() - 0.5) * 44, side * (W + 13 + rand() * 13), fr);
+    for (let n = 0; n < 16; n++) { // along the far touchline, standing or sitting on the tarmac (football.js plays the match)
+      const u = (n % 2 ? 1 : -1) * (9 + rand() * 13); // leaving the TV tower's view of the near side clear
+      track.frame(S + u, side * (W + 30.5 + rand() * 1.6), fr);
       const y = NR.groundY(fr.pos.x, fr.pos.z) + 0.07;
-      crowd.addPerson(A, new THREE.Vector3(fr.pos.x, y, fr.pos.z), faceRoad() + (rand() - 0.5) * 2, rand() < 0.35 ? 'ground' : 'stand', NR.pupil(rand()));
+      crowd.addPerson(A, new THREE.Vector3(fr.pos.x, y, fr.pos.z), faceRoad(), rand() < 0.4 ? 'ground' : 'stand', NR.pupil(rand()));
     }
-    [-12, 9].forEach((u) => {
-      track.frame(S + u, side * (W + 11), fr);
+    [-19, 16].forEach((u) => {
+      track.frame(S + u, side * (W + 31), fr);
       crowd.addPerson(A, new THREE.Vector3(fr.pos.x, NR.groundY(fr.pos.x, fr.pos.z) + 0.07, fr.pos.z), faceRoad(), 'stand',
         { prop: null, hw: ['hair', 'hairLong'], cols: { top: '#1f2b4a', bottom: '#2d2f35' } });
     });
 
     return {
-      group: g, spot: sp,
+      group: g, spot: sp, area: A,
+      pitch: { s: S, side }, // where the pitch is, for the match (football.js)
       update(t, nightK) { const k = 0.85 * nightK; for (const m of lit) m.emissiveIntensity = k; },
     };
   }

@@ -50,10 +50,11 @@
     const cars = race.cars;
     const audio = NR.createAudio(race);
     const weather = NR.createWeather({ scene, renderer, sky, terrain, road, race, fx, audio, scenery, track });
-    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes, mountains };
+    NR.debug = { renderer, scene, camera, sky, race, cams, audio, fx, replay, scenery, weather, pits, track, planes, mountains, match: scenery.match };
     fx.onCrash = (pos, s) => audio.impact?.(pos, s);
     fx.onBurst = (pos) => audio.firework?.(pos);
     scenery.farm.onCall = (kind, pos, young) => audio.animal?.(kind, pos, young);
+    const match = scenery.match;
 
     // the rolling start: run the field for a few seconds so it is already racing on first view
     function warmUp() {
@@ -84,6 +85,7 @@
       $('subAir').hidden = st.mode !== 'air';
       $('subSpot').hidden = st.mode !== 'spectator';
       $('subCabin').hidden = st.mode !== 'cabin';
+      $('subFootball').hidden = $('scoreBug').hidden = st.mode !== 'football';
       $('spotName').textContent = scenery.spots[st.spot].name;
       const c = cars[st.focus];
       $('fcSwatch').style.background = c.base;
@@ -105,6 +107,7 @@
       if (replay.active) replay.stop();
       cams.setMode(m);
       if (m === 'spectator') showBanner(scenery.spots[st.spot].name, 'Spectator view');
+      if (m === 'football') { renderScore(); showBanner('Parkroyal v Tytherington', 'Football · live from the school'); }
       syncUI();
     }
     function setFocus(i) {
@@ -185,7 +188,7 @@
     replay.onClip = (clip) => {
       flagReplayReady(clip);
       $('replayBtn').disabled = !!driving;
-      if (!autoReplay || race.phase === 'ceremony' || driving) return;
+      if (!autoReplay || race.phase === 'ceremony' || driving || st.mode === 'football') return; // (no cutting away from the football)
       if (replay.active) queue.push(clip); else replay.start(clip);
     };
     replay.onState = (on, clip) => {
@@ -266,7 +269,7 @@
           break;
         case 'overtake': {
           const o = ev.other;
-          if (c.idx === st.focus || o.idx === st.focus || ev.pos <= 3) showBanner(`#${c.num} ${c.brand} passes #${o.num} ${o.brand}`, `Overtake · P${ev.pos}`, 1);
+          if (st.mode !== 'football' && (c.idx === st.focus || o.idx === st.focus || ev.pos <= 3)) showBanner(`#${c.num} ${c.brand} passes #${o.num} ${o.brand}`, `Overtake · P${ev.pos}`, 1);
           if (c === bus) scenery.busCheer(3); // the whole top deck on its feet
           break;
         }
@@ -290,10 +293,10 @@
           ceremonyIn = 3.5;
           break;
         case 'pitIn':
-          if (c.idx === st.focus || c.pos <= 3) showBanner(`#${c.num} ${c.brand} pits`, `Pit stop · Lap ${ev.lap}`, 2);
+          if (st.mode !== 'football' && (c.idx === st.focus || c.pos <= 3)) showBanner(`#${c.num} ${c.brand} pits`, `Pit stop · Lap ${ev.lap}`, 2);
           break;
         case 'pitOut':
-          if (c.idx === st.focus || c.pos <= 3) showBanner(`Stationary ${ev.stationary.toFixed(1)} s`, `#${c.num} ${c.brand} · fuel, tyres, driver${ev.repaired ? ', repairs' : ''}`, 2);
+          if (st.mode !== 'football' && (c.idx === st.focus || c.pos <= 3)) showBanner(`Stationary ${ev.stationary.toFixed(1)} s`, `#${c.num} ${c.brand} · fuel, tyres, driver${ev.repaired ? ', repairs' : ''}`, 2);
           break;
         case 'safetyCar':
           document.body.classList.add('sc-out');
@@ -307,6 +310,42 @@
           showBanner('Green flag', 'Racing resumes', 4);
           break;
       }
+    };
+
+    // ---------- the football at the school (football.js) ----------
+    const [PAR, TYT] = match.teams;
+    const ST_CLASS = { WINNING: 'win', WON: 'win', LOSING: 'lose', LOST: 'lose' };
+    const scoreLine = () => `Parkroyal ${PAR.score}–${TYT.score} Tytherington`;
+    function renderScore() {
+      setText($('sbHome'), String(PAR.score)); setText($('sbAway'), String(TYT.score));
+      match.standing.forEach((s, i) => {
+        const el = $(i ? 'sbAwaySt' : 'sbHomeSt'), cls = ST_CLASS[s] || 'draw';
+        setText(el, s.charAt(0) + s.slice(1).toLowerCase());
+        if (el.className !== cls) el.className = cls;
+      });
+      setText($('sbClock'), match.clockText.replace(/\s+·\s+/, ' · '));
+    }
+    match.onEvent = (ev) => {
+      const watching = st.mode === 'football';
+      switch (ev.type) {
+        case 'whistle': audio.whistle?.(match.pointOf(match.sim.ref.u, match.sim.ref.l), ev.kind); break;
+        case 'kick': audio.kick?.(match.pointOf(ev.u, ev.l), ev.power); break;
+        case 'goal':
+          showBanner(`Goal! ${ev.team.info.name}`, `${ev.own ? 'Own goal · ' : ''}${scoreLine()} · ${Math.floor(ev.clock / 60) + 1}'`, watching ? 3 : 1);
+          audio.goal?.(match.centre);
+          if (ev.team === PAR) scenery.schoolCheer(6); // the pupils watching go wild
+          break;
+        case 'save': if (watching) showBanner('What a save!', `${ev.team.info.name} keeper`, 1); break;
+        case 'post': if (watching) showBanner('Off the post!', `So close for ${ev.team.info.name}`, 1); break;
+        case 'half': showBanner('Half time', scoreLine(), watching ? 3 : 0); break;
+        case 'secondHalf': if (watching) showBanner('Second half', scoreLine(), 1); break;
+        case 'full':
+          showBanner(ev.winner ? `${ev.winner.info.name} win!` : 'It’s a draw!', `Full time · ${scoreLine()}`, watching ? 3 : 1);
+          if (ev.winner === PAR) scenery.schoolCheer(10);
+          break;
+        case 'newMatch': if (watching) showBanner('A new match', 'Parkroyal v Tytherington · kick-off soon', 1); break;
+      }
+      renderScore();
     };
 
     // ---------- the celebration ----------
@@ -324,7 +363,7 @@
         document.body.classList.add('ceremony');
         $('podiumBtn').hidden = false;
         st.focus = race.winner ? race.winner.idx : st.focus;
-        cams.setMode('ceremony');
+        if (st.mode !== 'football') cams.setMode('ceremony'); // watching the football: the podium button is there for later
         fireworksOn = true; fireworksT = 0; confettiT = 0;
         showResults();
         syncUI();
@@ -391,6 +430,7 @@
       if (replay.active) return planeAt.copy(replay.focus);
       if (st.mode === 'ceremony') return planeAt.copy(race.ceremony.center);
       if (st.mode === 'spectator') { const sp = scenery.spots[st.spot]; return planeAt.copy(track.frame(sp.s, -sp.side * 150, tfp).pos); }
+      if (st.mode === 'football') return planeAt.copy(match.pointOf(0, -150)); // over the far side of the road from the school
       const c = cars[st.focus];
       return planeAt.copy(c.world).addScaledVector(c.fwd, 110);
     }
@@ -407,6 +447,7 @@
       if (k === '1') setMode('air');
       else if (k === '2') setMode('cabin');
       else if (k === '3') setMode('spectator');
+      else if (k === '4') setMode('football');
       else if (k === 'b' || k === 'B') { if (replay.active) replay.stop(); cams.setAir(AIRS[(AIRS.indexOf(st.air) + 1) % AIRS.length]); syncUI(); }
       else if (k === 'ArrowRight' || k === 'e' || k === 'E') st.mode === 'spectator' ? setSpot(st.spot + 1) : setFocus(st.focus + 1);
       else if (k === 'ArrowLeft' || k === 'q' || k === 'Q') st.mode === 'spectator' ? setSpot(st.spot - 1) : setFocus(st.focus - 1);
@@ -760,7 +801,7 @@
       $('tLast').textContent = fmtLap(c.lastLap);
       $('tBest').textContent = fmtLap(c.bestLap);
       $('tAir').hidden = !c.air;
-      if (st.mode !== 'spectator' && !replay.active && race.phase !== 'ceremony' && c.section !== lastSection) {
+      if (st.mode !== 'spectator' && st.mode !== 'football' && !replay.active && race.phase !== 'ceremony' && c.section !== lastSection) {
         if (lastSection !== -1) showBanner(track.sections[c.section].name, `#${c.num} ${c.brand}`);
         lastSection = c.section;
       }
@@ -814,8 +855,8 @@
         t = Math.max(14, ...side.concat(right || []).map((b) => b.bottom)) + 8;
         l = side.length ? Math.min(...side.map((b) => b.left)) : 16; r = right ? W - right.right : 16;
       }
-      const dt = boxes(['#driveTop'])[0];
-      if (dt) t = Math.max(t, dt.bottom + 8); // driving: the banner goes under your race panel, clear of Exit
+      // driving: the banner goes under your race panel, clear of Exit; watching the football, under its score
+      boxes(['#driveTop', '#scoreBug']).forEach((r) => { t = Math.max(t, r.bottom + 8); });
       // A short band (a small phone upright) keeps the banner and one whole flag clear of the bottom row by
       // letting them reach up over the map; the banner then covers the flags while it shows.
       const b = px['--hud-b'] + 8, bannerH = $('banner').offsetHeight, FLAG = 80;
@@ -828,7 +869,7 @@
     }
     let layoutDue = false;
     const relayout = () => { if (!layoutDue) { layoutDue = true; requestAnimationFrame(() => { layoutDue = false; layoutHud(); }); } };
-    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar', '#driveTop', '#driveSpeed', '#pads'].forEach((s) => ro.observe(document.querySelector(s))); }
+    if (window.ResizeObserver) { const ro = new ResizeObserver(relayout); ['.left', '.right', '.bottom', '#results', '#resShow', '#replayBar', '#driveTop', '#driveSpeed', '#pads', '#scoreBug'].forEach((s) => ro.observe(document.querySelector(s))); }
     window.addEventListener('resize', relayout);
     syncUI();
     layoutHud();
@@ -840,6 +881,7 @@
       last = now;
       let focus, fxDt = 0, rate = speed;
       if (driving) driveFrame(raw);
+      match.update(paused ? 0 : real, now / 1000, camera, weather.nightK); // the football keeps its own time, whatever the race speed
       if (replay.active) {
         rate = replay.update(paused ? 0 : real, st.calm ? 0 : 1);
         fxDt = paused ? 0 : real * rate;
@@ -871,11 +913,15 @@
       sky.sun.target.position.copy(focus);
       sky.sun.target.updateMatrixWorld();
       scenery.update(now / 1000, focus, cars, weather.nightK, camera.position);
+      match.renderScreen(renderer, scene, camera, now / 1000); // the big screen by the pitch, when it's in view
       renderer.render(scene, camera);
       renderTelemetry();
       renderTower(false);
       drawMinimap();
-      if ((clockT += real) > 0.25) { clockT = 0; $('clock').textContent = fmtClock(race.time + (weather.night ? 21 * 3600 + 40 * 60 : 14 * 3600 + 5 * 60)); }
+      if ((clockT += real) > 0.25) {
+        clockT = 0; $('clock').textContent = fmtClock(race.time + (weather.night ? 21 * 3600 + 40 * 60 : 14 * 3600 + 5 * 60));
+        if (st.mode === 'football') renderScore();
+      }
       if ((flagT += real) > 1) { flagT = 0; pruneFlags(); }
       requestAnimationFrame(loop);
     }

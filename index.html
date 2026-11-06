@@ -199,8 +199,8 @@
   .icon-btn svg { width: 16px; height: 16px; }
 
   .dock { padding: 8px; display: grid; gap: 8px; justify-items: center; }
-  .modes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } /* air, cabin, spectators, and drive (podium instead, after the race) */
-  .mode { display: grid; justify-items: center; gap: 3px; min-width: 112px; padding: 9px 12px 8px; border-radius: 5px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-family: var(--font-display); }
+  .modes { display: grid; grid-template-columns: repeat(5, minmax(min-content, 1fr)); gap: 6px; } /* air, cabin, spectators, football, and drive (podium instead, after the race); a long label gets the room it needs */
+  .mode { display: grid; justify-items: center; align-content: start; gap: 3px; min-width: 104px; padding: 9px 10px 8px; border-radius: 5px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); font-family: var(--font-display); }
   .mode svg { width: 26px; height: 26px; }
   .mode b { font-size: 17px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1; }
   .mode small { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; line-height: 1; }
@@ -209,7 +209,24 @@
   .mode[aria-pressed="true"] small { color: rgba(26, 20, 0, 0.7); }
   .sub { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; font-family: var(--font-display); }
   .sub .seg { display: flex; gap: 4px; }
-  #spotName, #cabinName { min-width: 190px; text-align: center; font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+  #spotName, #cabinName, #fbName { min-width: 190px; text-align: center; font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+
+  /* the football's score at the top, like a TV score bug (main.js fills it in) */
+  .score-bug { position: absolute; top: var(--gut-t); left: 50%; transform: translateX(-50%); padding: 0; overflow: hidden; font-family: var(--font-display); }
+  .sb-main { display: flex; align-items: stretch; }
+  .sb-team { display: grid; align-content: center; gap: 1px; padding: 6px 14px; min-width: 0; }
+  .sb-team b { font-size: 21px; font-weight: 800; line-height: 1.05; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+  .sb-team small { font-size: 12px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  .sb-team.home { border-left: 6px solid #c4161c; }
+  .sb-team.away { border-right: 6px solid #1f5fbf; text-align: right; }
+  .sb-team .abbr { display: none; }
+  .sb-team small.win { color: #3ecf6e; }
+  .sb-team small.lose { color: #ff5247; }
+  .sb-team small.draw { color: var(--signal); }
+  .sb-score { display: flex; align-items: center; gap: 8px; padding: 0 14px; background: var(--signal); color: var(--signal-ink); font-size: 36px; font-weight: 800; line-height: 1; }
+  .sb-score i { font-style: normal; font-weight: 600; opacity: 0.6; }
+  .sb-clock { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 3px 10px 4px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .sb-clock #sbClock { color: var(--text); }
   .sub .tip { font-size: 12px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
 
   .tele { width: 268px; padding: 10px 12px; display: grid; gap: 6px; font-family: var(--font-display); }
@@ -251,6 +268,18 @@
     .results { width: min(340px, calc(100% - 200px)); }
     .keys { display: none; }
   }
+  /* five camera buttons between the car and the speed on a narrower screen (a small laptop, an iPad on its side):
+     no subtitles, tighter labels */
+  @media (max-width: 1150px) {
+    .mode { min-width: 0; padding: 8px 6px 7px; }
+    .mode small { display: none; }
+    .mode b { font-size: 15px; letter-spacing: 0.04em; }
+  }
+  @media (max-width: 1000px) {
+    .mode { padding: 8px 3px 7px; }
+    .mode b { font-size: 13px; letter-spacing: 0.02em; }
+  }
+  .mode .short { display: none; }
   @media (max-width: 860px), (max-height: 500px) {
     .right { width: 156px; }
     .ctrls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -282,7 +311,8 @@
     .mode small, .focus .l3, .t-sec, .laps, .t-head span:last-child { display: none; }
     .modes { width: 100%; }
     .dock { justify-items: stretch; }
-    #spotName, #cabinName { min-width: 0; flex: 1; font-size: 14px; }
+    #spotName, #cabinName, #fbName { min-width: 0; flex: 1; font-size: 14px; }
+    #subFootball .tip { display: none; }
     .focus { padding: 6px; gap: 6px; }
     #fcSwatch { height: 32px; }
     .focus .l1 { font-size: 15px; }
@@ -345,6 +375,13 @@
     .gear b { font-size: 20px; }
     .banner { padding: 4px 14px 6px; }
     .banner strong { font-size: 20px; }
+  }
+  /* the smallest phones on their side (an iPhone SE): five camera buttons only just fit */
+  @media (max-height: 500px) and (min-width: 561px) and (max-width: 700px) {
+    .modes { gap: 3px; }
+    .mode { padding: 5px 2px; }
+    .mode .long { display: none; }
+    .mode .short { display: inline; }
   }
   /* touch screens: finger-sized targets (Apple asks for 44 px) */
   @media (pointer: coarse) {
@@ -437,6 +474,12 @@
   @media (max-width: 860px), (max-height: 500px) {
     body.driving .left { display: none; }
     .drive-top { left: var(--gut-l); transform: none; max-width: calc(100% - var(--gut-l) - var(--gut-r) - 164px); padding: 6px 8px 6px 12px; gap: 6px 12px; }
+    /* watching the football: its score takes the title's corner */
+    body[data-mode="football"] .left { display: none; }
+    .score-bug { left: var(--gut-l); transform: none; max-width: calc(100% - var(--gut-l) - var(--gut-r) - 164px); }
+    .sb-team { padding: 5px 10px; }
+    .sb-team b { font-size: 17px; }
+    .sb-score { font-size: 28px; padding: 0 10px; }
     .dt-stat b { font-size: 24px; }
     .dt-stat b span { font-size: 13px; }
   }
@@ -459,6 +502,12 @@
     .drive-speed > b { font-size: 40px; }
     .dt-stat:nth-child(3) { display: none; }
     .dt-btns .ctrl { padding: 0 7px; font-size: 12px; letter-spacing: 0.02em; }
+    .sb-team .full { display: none; }
+    .sb-team .abbr { display: inline; }
+    .sb-team { padding: 4px 8px; }
+    .sb-team small { font-size: 10px; letter-spacing: 0.08em; }
+    .sb-score { font-size: 24px; gap: 5px; padding: 0 8px; }
+    .sb-clock { font-size: 11px; gap: 6px; letter-spacing: 0.06em; }
     body.driving .turn-hint { display: block; position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); padding: 10px 14px; font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: 0.04em; text-transform: uppercase; text-align: center; pointer-events: none; animation: hint-out 0.6s ease 5s forwards; }
     .ds-head h2 { font-size: 26px; }
     .ds-cars { grid-template-columns: 1fr 1fr; }
@@ -573,7 +622,17 @@
   </section>
   <button type="button" class="ctrl res-pill" id="resShow" hidden>Results</button>
 
-  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp / plane</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span> · <span><kbd>D</kbd> drive a car</span></div>
+  <!-- the football (football.js): the score, like a TV score bug -->
+  <section class="score-bug panel" id="scoreBug" aria-label="Football score" hidden>
+    <div class="sb-main">
+      <div class="sb-team home"><b><span class="full">Parkroyal</span><span class="abbr">PAR</span></b><small id="sbHomeSt" class="draw">Drawing</small></div>
+      <div class="sb-score num"><span id="sbHome">0</span><i aria-hidden="true">–</i><span id="sbAway">0</span></div>
+      <div class="sb-team away"><b><span class="full">Tytherington</span><span class="abbr">TYT</span></b><small id="sbAwaySt" class="draw">Drawing</small></div>
+    </div>
+    <div class="sb-clock"><span class="live">Live</span><span id="sbClock" class="num">Kick-off soon</span></div>
+  </section>
+
+  <div class="keys" aria-hidden="true"><span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> cameras</span> · <span><kbd>←</kbd><kbd>→</kbd> switch car or stand</span> · <span><kbd>B</kbd> helicopter / blimp / plane</span> · <span><kbd>P</kbd> pause</span> · <span><kbd>R</kbd> replay</span> · <span><kbd>W</kbd> weather</span> · <span><kbd>N</kbd> night</span> · <span><kbd>M</kbd> sound</span> · <span><kbd>H</kbd> hide overlay</span> · <span><kbd>D</kbd> drive a car</span></div>
 
   <div class="bottom">
     <section class="focus panel" aria-label="Car you are following">
@@ -594,7 +653,11 @@
         </button>
         <button type="button" class="mode" data-mode="spectator" aria-pressed="false">
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10" cy="10" r="3"/><circle cx="22" cy="10" r="3"/><path d="M4 24v-3c0-3 2.7-5 6-5s6 2 6 5v3M16 24v-3c0-3 2.7-5 6-5s6 2 6 5v3"/><path d="M3 27h26"/></svg>
-          <b>Spectators</b><small>Trackside stands</small>
+          <b><span class="long">Spectators</span><span class="short">Stands</span></b><small>Trackside stands</small>
+        </button>
+        <button type="button" class="mode" data-mode="football" aria-pressed="false" title="Watch the football at Parkroyal School (4)">
+          <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="16" r="11"/><path d="m16 11 4.8 3.5-1.8 5.7h-6l-1.8-5.7z" fill="currentColor"/><path d="M16 5v6M20.8 14.5l5.6-1.8M19 20.2l3.4 4.7M13 20.2l-3.4 4.7M11.2 14.5l-5.6-1.8"/></svg>
+          <b>Football</b><small>Parkroyal v Tytherington</small>
         </button>
         <button type="button" class="mode" data-mode="ceremony" id="podiumBtn" aria-pressed="false" hidden>
           <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5h10v6a5 5 0 0 1-10 0z"/><path d="M11 7H7a3 3 0 0 0 4 4M21 7h4a3 3 0 0 1-4 4M16 16v4M11 24h10M13 20h6v4h-6z"/></svg>
@@ -619,6 +682,7 @@
         <button type="button" class="icon-btn" id="spotNext" aria-label="Next spectator stand"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg></button>
       </div>
       <div class="sub" id="subCabin" hidden><span class="tip">On board</span><span id="cabinName">#59 McLaren 720S GT3 EVO</span></div>
+      <div class="sub" id="subFootball" hidden><span class="tip">Live from the school pitch</span><span id="fbName">Parkroyal v Tytherington</span></div>
     </section>
 
     <section class="tele panel" id="telemetry" aria-label="Telemetry">
@@ -695,6 +759,7 @@
 <script src="js/track.js"></script>
 <script src="js/scenery.js"></script>
 <script src="js/school.js"></script>
+<script src="js/football.js"></script>
 <script src="js/pools.js"></script>
 <script src="js/farm.js"></script>
 <script src="js/models.js"></script>

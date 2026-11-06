@@ -1,4 +1,4 @@
-// cameras.js — Air (helicopter / blimp / banner plane), Cabin and Spectator camera rigs, and the chase camera for drive mode.
+// cameras.js — Air (helicopter / blimp / banner plane), Cabin, Spectator and Football camera rigs, and the chase camera for drive mode.
 (function () {
   'use strict';
   const NR = (window.NR = window.NR || {});
@@ -176,6 +176,10 @@
         cockpit.wheel.rotation.z = Math.max(-2.4, Math.min(2.4, c.steer * 13));
         camera.fov = 66;
         focusPos.copy(c.world);
+      } else if (state.mode === 'football') {
+        // the match at Parkroyal School, from the TV camera on its tower (football.js directs it)
+        scenery.match.view(camera, t, shake);
+        focusPos.copy(scenery.match.focus);
       } else {
         const sp = scenery.spots[state.spot];
         let best = null, bd = 230;
@@ -209,6 +213,7 @@
     // k scales the camera's distance: below 1 moves in.
     function zoom(k) {
       if (state.mode === 'chase') { chaseZoom.k = THREE.MathUtils.clamp(chaseZoom.k * k, 0.7, 2.2); return; }
+      if (state.mode === 'football') { scenery.match.zoom(k); return; }
       if (state.mode !== 'air') return;
       if (state.air === 'blimp') blimp.zoom = THREE.MathUtils.clamp(blimp.zoom * k, 0.35, 1.4);
       else if (state.air === 'plane') planeZoom.k = THREE.MathUtils.clamp(planeZoom.k * k, 0.4, 2.5);
